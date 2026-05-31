@@ -19,6 +19,8 @@ export default function App() {
 
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [bootstrapError, setBootstrapError] = useState<string | null>(null)
 
   async function spawnAndAddTerminal(workspaceId: string) {
     const terminal = await invoke<Terminal>('spawn_terminal', {
@@ -64,7 +66,9 @@ export default function App() {
         await activateWorkspace(wsList[0].id)
       }
     }
-    bootstrap().catch(console.error)
+    bootstrap()
+      .catch((err) => setBootstrapError(String(err)))
+      .finally(() => setLoading(false))
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSelectWorkspace(id: string) {
@@ -106,10 +110,20 @@ export default function App() {
           <div
             style={{
               flex: 1, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', color: 'var(--text-dim)', fontSize: 13,
+              justifyContent: 'center', flexDirection: 'column', gap: 8,
             }}
           >
-            No workspace selected
+            {loading ? (
+              <span style={{ color: 'var(--text-inactive)', fontSize: 13 }}>Starting…</span>
+            ) : bootstrapError ? (
+              <span style={{ color: '#e07b7b', fontSize: 12, maxWidth: 400, textAlign: 'center' }}>
+                Error: {bootstrapError}
+              </span>
+            ) : (
+              <span style={{ color: 'var(--text-inactive)', fontSize: 13 }}>
+                No workspace selected
+              </span>
+            )}
           </div>
         )}
       </div>

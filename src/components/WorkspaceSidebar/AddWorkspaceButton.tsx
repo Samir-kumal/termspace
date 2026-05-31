@@ -9,7 +9,7 @@ export function AddWorkspaceButton({ onClick }: Props) {
         display: 'flex', alignItems: 'center', gap: 6, width: '100%',
         padding: '7px 10px', background: 'none',
         border: '1px dashed var(--border-inactive)', borderRadius: 4,
-        cursor: 'pointer', color: 'var(--text-dim)', fontSize: 12,
+        cursor: 'pointer', color: 'var(--text-inactive)', fontSize: 12,
         marginTop: 'auto',
       }}
     >

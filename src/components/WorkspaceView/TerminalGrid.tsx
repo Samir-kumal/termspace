@@ -28,7 +28,7 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
 
   if (terminals.length === 1) {
     return (
-      <div style={{ flex: 1, height: '100%', padding: 6 }}>
+      <div style={{ flex: 1, display: 'flex', padding: 6, overflow: 'hidden' }}>
         {pane(terminals[0])}
       </div>
     )

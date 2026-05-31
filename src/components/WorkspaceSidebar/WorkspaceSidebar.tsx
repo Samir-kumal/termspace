@@ -22,7 +22,7 @@ export function WorkspaceSidebar({ onAddWorkspace, onSelectWorkspace }: Props) {
     >
       <div
         style={{
-          fontSize: 10, letterSpacing: 1, color: 'var(--text-dim)',
+          fontSize: 10, letterSpacing: 1, color: 'var(--text-inactive)',
           padding: '4px 10px 8px', textTransform: 'uppercase',
         }}
       >
