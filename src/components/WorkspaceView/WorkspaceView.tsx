@@ -9,8 +9,11 @@ interface Props {
   onEditWorkspace: (workspace: Workspace) => void
 }
 
+// Stable reference — prevents Zustand infinite re-render when no terminals exist yet
+const EMPTY_TERMINALS: Terminal[] = []
+
 export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
-  const terminals = useAppStore((s) => s.terminalsByWorkspace[workspace.id] ?? [])
+  const terminals = useAppStore((s) => s.terminalsByWorkspace[workspace.id] ?? EMPTY_TERMINALS)
   const activeTerminalId = useAppStore((s) => s.activeTerminalId)
   const addTerminal = useAppStore((s) => s.addTerminal)
   const setActiveTerminalId = useAppStore((s) => s.setActiveTerminalId)

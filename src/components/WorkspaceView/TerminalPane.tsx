@@ -4,7 +4,6 @@ import { FitAddon } from '@xterm/addon-fit'
 import { SerializeAddon } from '@xterm/addon-serialize'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { useAppStore } from '../../store/useAppStore'
 import '@xterm/xterm/css/xterm.css'
 
 interface Props {
@@ -19,7 +18,6 @@ export function TerminalPane({ terminalId, workspaceId, isActive, scrollback, on
   const containerRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<XTerm | null>(null)
   const unlistenRef = useRef<Promise<() => void> | null>(null)
-  const removeTerminal = useAppStore((s) => s.removeTerminal)
 
   useEffect(() => {
     if (!containerRef.current) return
@@ -73,12 +71,13 @@ export function TerminalPane({ terminalId, workspaceId, isActive, scrollback, on
 
     return () => {
       onDataDispose.dispose()
-      unlistenRef.current?.then((fn) => fn())
+      unlistenRef.current?.then((fn) => fn()).catch(() => {})
       ro.disconnect()
       const lines = serializeAddon.serialize().split('\n')
       invoke('close_terminal', { id: terminalId, scrollback: lines }).catch(console.error)
       xterm.dispose()
-      removeTerminal(workspaceId, terminalId)
+      // Note: removeTerminal is intentionally NOT called here.
+      // The parent (App.tsx activateWorkspace) owns terminal lifecycle in the store.
     }
   }, [terminalId, workspaceId]) // eslint-disable-line react-hooks/exhaustive-deps
 

@@ -9,6 +9,38 @@
 
   <body>
     <div id="root"></div>
+    <script>
+    // Dev-only Tauri IPC mock — lets the UI run without the native app
+    if (typeof window.__TAURI_INTERNALS__ === 'undefined') {
+      let _ws = [], _terms = {}, _sb = {}, _wi = 0, _ti = 0;
+      const _listeners = {};
+      window.__TAURI_INTERNALS__ = {
+        transformCallback: (fn, once) => {
+          const id = ++_ti + '_cb';
+          window[`_cb_${id}`] = fn;
+          return id;
+        },
+        unregisterListener: (id) => { delete _listeners[id]; },
+        listeners: _listeners,
+        invoke: async (cmd, args) => {
+          const now = Date.now();
+          if (cmd === 'get_workspaces') return _ws;
+          if (cmd === 'create_workspace') { const w = {id:'ws-'+(++_wi),name:args.name,emoji:args.emoji,color:args.color,position:_ws.length,createdAt:now}; _ws.push(w); _terms[w.id]=[]; return w; }
+          if (cmd === 'update_workspace') { _ws=_ws.map(w=>w.id===args.id?{...w,name:args.name,emoji:args.emoji,color:args.color}:w); return null; }
+          if (cmd === 'delete_workspace') { _ws=_ws.filter(w=>w.id!==args.id); return null; }
+          if (cmd === 'get_terminals') return _terms[args.workspaceId]||[];
+          if (cmd === 'spawn_terminal') { const t={id:'t-'+(++_ti),workspaceId:args.workspaceId,shell:'zsh',cwd:'/Users/samir',position:(_terms[args.workspaceId]||[]).length,sizePercent:50,createdAt:now}; if(!_terms[args.workspaceId])_terms[args.workspaceId]=[]; _terms[args.workspaceId].push(t); return t; }
+          if (cmd === 'close_terminal') { _sb[args.id]=args.scrollback; return null; }
+          if (cmd === 'load_scrollback') return _sb[args.terminalId]||[];
+          if (cmd === 'write_pty') return null;
+          if (cmd === 'resize_pty') return null;
+          if (cmd === 'plugin:event|listen') { const id = args.handler; _listeners[id] = args.event; return id; }
+          if (cmd === 'plugin:event|unlisten') { delete _listeners[args.event]; return null; }
+          return null;
+        }
+      };
+    }
+    </script>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
