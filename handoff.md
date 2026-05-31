@@ -16,7 +16,7 @@ A native macOS terminal workspace app built with Tauri v2 (Rust backend + React/
 | Panel resizing | react-resizable-panels v4 |
 | State management | Zustand |
 | Database | SQLite via rusqlite (bundled) |
-| PTY (macOS 26+) | `/usr/bin/ssh -tt localhost` via sshd |
+| PTY | `portable-pty` crate (native posix_openpt) |
 
 ---
 
@@ -39,7 +39,7 @@ termspace/
 │   ├── src/
 │   │   ├── lib.rs                # Tauri entry, registers all commands
 │   │   ├── commands.rs           # Tauri command handlers (DB + PTY bridge)
-│   │   ├── pty_manager.rs        # SSH-based PTY manager (see macOS 26 note)
+│   │   ├── pty_manager.rs        # Native PTY manager (portable-pty)
 │   │   └── db.rs                 # SQLite schema + CRUD
 │   ├── Cargo.toml
 │   └── tauri.conf.json
@@ -56,11 +56,11 @@ termspace/
 ```
 xterm.js keystroke
   → invoke('write_pty')
-    → PtyManager::write() → ssh process stdin
-      → sshd PTY master → shell
+    → PtyManager::write() → PTY master
+      → shell
 
 shell output
-  → sshd PTY master → ssh process stdout
+  → PTY master
     → background read thread → app.emit('pty-output-<id>')
       → TerminalPane listen() → xterm.write()
 ```
@@ -81,42 +81,13 @@ To avoid a race where the shell emits its initial prompt before the frontend lis
 
 ---
 
-## The macOS 26 PTY Problem
+## PTY Backend
 
-### What Happened
+Termspace uses the `portable-pty` crate (used in production by WezTerm) for native PTY creation.
+`native_pty_system().openpty()` calls `posix_openpt()` under the hood, which works without
+any special entitlements on macOS 26 — the initial assumption that it was restricted was incorrect.
 
-macOS 26 Tahoe (Darwin 25.5.0, Build 25F71) restricts opening `/dev/ptmx` to processes with the private Apple entitlement `com.apple.private.kernel.global-proc-info`. Only Apple-signed system apps (Terminal.app) have this entitlement. Third-party binaries — including adhoc-signed Tauri dev builds — get `ENXIO` ("Device not configured") when calling `open("/dev/ptmx")`.
-
-This affects **all** PTY creation methods for unsigned binaries:
-- `open("/dev/ptmx")` → ENXIO
-- `openpty()` via libutil → ENXIO (calls /dev/ptmx internally)
-- `posix_openpt()` → ENXIO (same)
-- BSD legacy devices `/dev/ptyXX` → EAGAIN (all in use or also restricted)
-- Even `/usr/bin/script` (a platform binary without the specific entitlement) fails
-
-### The Workaround
-
-Delegate PTY creation to `sshd`, a privileged system daemon that **does** have the entitlement. The PTY manager spawns `/usr/bin/ssh -tt localhost` with a pre-generated key. `sshd` creates the PTY on the server side; the Rust process communicates via stdin/stdout pipes.
-
-### Setup Required (One-Time)
-
-The user must enable **Remote Login** in:
-> System Settings → General → Sharing → Remote Login → On
-
-On first terminal spawn, the app auto-generates an SSH key at:
-```
-~/Library/Application Support/com.termspace.app/termspace_id_ed25519
-```
-and adds the public key to `~/.ssh/authorized_keys`.
-
-### Known Limitations of SSH Approach
-
-| Limitation | Impact |
-|---|---|
-| Terminal resize sends `stty cols X rows Y` via shell stdin | Command visible in terminal output on resize |
-| No initial `cwd` support (shell starts in `~`) | User must `cd` manually after switching workspaces |
-| Serial terminal spawning (not parallel) | Slightly slower multi-terminal restore |
-| Requires Remote Login enabled | Extra one-time setup step for user |
+No SSH, no Remote Login, no setup required.
 
 ---
 
@@ -135,6 +106,7 @@ and adds the public key to `~/.ssh/authorized_keys`.
 | PTY race: initial shell prompt lost | Two-phase spawn/start_reading split |
 | `openpty` ENXIO on macOS 26 | SSH-based PTY workaround |
 | Zombie SSH connections exhaust `maxproc` | Changed `Promise.all` terminal spawning to serial `for...of` loop in App.tsx |
+| SSH-based PTY workaround | Replaced with portable-pty; posix_openpt works for unsigned binaries on macOS 26 |
 
 ---
 
@@ -148,7 +120,6 @@ npm run tauri dev
 **Prerequisites:**
 - Rust toolchain (`source "$HOME/.cargo/env"` if needed)
 - Node.js + npm
-- Remote Login enabled (System Settings → General → Sharing)
 
 ---
 
@@ -156,7 +127,7 @@ npm run tauri dev
 
 ### High Priority
 
-- **Terminal resize** — currently sends a visible `stty` command to the shell. Should silently resize by sending SSH window-change request at the protocol level (requires `russh` crate or a proper SSH library instead of spawning `/usr/bin/ssh`).
+- ~~**Terminal resize**~~ — Fixed: `portable-pty` sends `TIOCSWINSZ` ioctl; shell receives `SIGWINCH` silently.
 
 ### Medium Priority
 
@@ -166,7 +137,7 @@ npm run tauri dev
 
 - ~~**Workspace deletion**~~ — **Fixed**: delete button (×) appears on hover in the sidebar. Disabled when only one workspace remains.
 
-- **Shell output before `stty`** — on resize, the `stty cols X rows Y\n` command is echoed by the PTY. Should be suppressed or replaced with a silent mechanism.
+- ~~**Shell output before `stty`**~~ — Fixed: no `stty` sent at all with native PTY.
 
 - **SSH connection timeout UX** — if Remote Login is disabled, the error banner appears but the workspace area is empty. Should show a helpful "Enable Remote Login" instruction with a direct link.
 
