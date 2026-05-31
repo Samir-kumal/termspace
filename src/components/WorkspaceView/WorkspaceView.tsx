@@ -17,6 +17,7 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
   const activeTerminalId = useAppStore((s) => s.activeTerminalId)
   const addTerminal = useAppStore((s) => s.addTerminal)
   const setActiveTerminalId = useAppStore((s) => s.setActiveTerminalId)
+  const removeTerminal = useAppStore((s) => s.removeTerminal)
 
   const handleAddTerminal = async () => {
     if (terminals.length >= 4) return
@@ -33,6 +34,19 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
     }
   }
 
+  const handleCloseTerminal = (terminalId: string) => {
+    removeTerminal(workspace.id, terminalId)
+    // If the active terminal is closed, switch focus to another one in this workspace
+    if (activeTerminalId === terminalId) {
+      const remaining = terminals.filter((t) => t.id !== terminalId)
+      if (remaining.length > 0) {
+        setActiveTerminalId(remaining[remaining.length - 1].id)
+      } else {
+        setActiveTerminalId(null)
+      }
+    }
+  }
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <WorkspaceHeader
@@ -46,6 +60,7 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
         terminals={terminals}
         activeTerminalId={activeTerminalId}
         onFocus={setActiveTerminalId}
+        onClose={handleCloseTerminal}
       />
     </div>
   )

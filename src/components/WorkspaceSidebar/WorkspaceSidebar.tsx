@@ -6,9 +6,10 @@ interface Props {
   onAddWorkspace: () => void
   onSelectWorkspace: (id: string) => void
   onDeleteWorkspace: (id: string) => void
+  onOpenSettings: () => void
 }
 
-export function WorkspaceSidebar({ onAddWorkspace, onSelectWorkspace, onDeleteWorkspace }: Props) {
+export function WorkspaceSidebar({ onAddWorkspace, onSelectWorkspace, onDeleteWorkspace, onOpenSettings }: Props) {
   const workspaces = useAppStore((s) => s.workspaces)
   const activeWorkspaceId = useAppStore((s) => s.activeWorkspaceId)
 
@@ -40,6 +41,30 @@ export function WorkspaceSidebar({ onAddWorkspace, onSelectWorkspace, onDeleteWo
         />
       ))}
       <AddWorkspaceButton onClick={onAddWorkspace} />
+
+      <div style={{ flex: 1 }} />
+      
+      <button
+        onClick={onOpenSettings}
+        style={{
+          display: 'flex', alignItems: 'center', gap: 8,
+          padding: '8px 10px', width: '100%', background: 'transparent',
+          border: 'none', borderRadius: 6, color: 'var(--text-inactive)',
+          cursor: 'pointer', fontSize: 13, textAlign: 'left',
+          marginTop: 'auto'
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.background = 'var(--bg-item)'
+          e.currentTarget.style.color = 'var(--text-active)'
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.background = 'transparent'
+          e.currentTarget.style.color = 'var(--text-inactive)'
+        }}
+      >
+        <span style={{ fontSize: 16 }}>⚙</span> Settings
+      </button>
     </div>
   )
 }
+

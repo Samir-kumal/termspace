@@ -84,6 +84,33 @@ pub fn spawn_terminal(
     Ok(terminal)
 }
 
+#[tauri::command]
+pub fn respawn_terminal(
+    pty: State<PtyManager>,
+    id: String,
+    shell: String,
+    cwd: String,
+) -> Result<(), String> {
+    // If the backend is still running (e.g., from a Vite HMR or frontend reload),
+    // kill the old PTY process so we can cleanly respawn and attach new listeners.
+    pty.kill(&id);
+
+    let resolved_cwd = if cwd.is_empty() {
+        std::env::var("HOME").unwrap_or_else(|_| "/".to_string())
+    } else {
+        cwd.clone()
+    };
+
+    let resolved_shell = if shell.is_empty() {
+        std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string())
+    } else {
+        shell.clone()
+    };
+
+    pty.spawn(id, &resolved_shell, &resolved_cwd, 80, 24)?;
+    Ok(())
+}
+
 /// Starts streaming PTY output for a terminal. The frontend calls this once,
 /// immediately after attaching its `pty-output-<id>` event listener, so the
 /// shell's initial prompt is not lost to a race.

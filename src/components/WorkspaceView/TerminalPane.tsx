@@ -1,37 +1,70 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SerializeAddon } from '@xterm/addon-serialize'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { useAppStore } from '../../store/useAppStore'
 import '@xterm/xterm/css/xterm.css'
 
 interface Props {
   terminalId: string
   workspaceId: string
   isActive: boolean
+  isMaximized: boolean
   scrollback?: string[]
   onFocus: () => void
+  onToggleMaximize: () => void
+  onClose: () => void
 }
 
-export function TerminalPane({ terminalId, workspaceId, isActive, scrollback, onFocus }: Props) {
+const XTERM_THEMES = {
+  'warm-dark': {
+    background: '#161310',
+    foreground: '#e8d5b0',
+    cursor: '#e8a045',
+    cursorAccent: '#1a1612',
+    selectionBackground: 'rgba(232,160,69,0.3)',
+  },
+  'cold-dark': {
+    background: '#0d1117',
+    foreground: '#c9d1d9',
+    cursor: '#58a6ff',
+    cursorAccent: '#161b22',
+    selectionBackground: 'rgba(88,166,255,0.3)',
+  },
+  'light': {
+    background: '#ffffff',
+    foreground: '#24292f',
+    cursor: '#0969da',
+    cursorAccent: '#ffffff',
+    selectionBackground: 'rgba(9,105,218,0.3)',
+  }
+}
+
+export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, scrollback, onFocus, onToggleMaximize, onClose }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<XTerm | null>(null)
   const unlistenRef = useRef<Promise<() => void> | null>(null)
+  const [isHovered, setIsHovered] = useState(false)
+  
+  const settings = useAppStore((s) => s.settings)
+
+  // Apply settings to XTerm whenever they change
+  useEffect(() => {
+    if (xtermRef.current) {
+      xtermRef.current.options.theme = XTERM_THEMES[settings.theme]
+      xtermRef.current.options.fontSize = settings.fontSize
+    }
+  }, [settings])
 
   useEffect(() => {
     if (!containerRef.current) return
 
     const xterm = new XTerm({
-      theme: {
-        background: '#161310',
-        foreground: '#e8d5b0',
-        cursor: '#e8a045',
-        cursorAccent: '#1a1612',
-        selectionBackground: 'rgba(232,160,69,0.3)',
-      },
+      theme: XTERM_THEMES[settings.theme],
       fontFamily: 'Menlo, Monaco, "Courier New", monospace',
-      fontSize: 13,
+      fontSize: settings.fontSize,
       lineHeight: 1.4,
       cursorBlink: true,
     })
@@ -91,15 +124,68 @@ export function TerminalPane({ terminalId, workspaceId, isActive, scrollback, on
   return (
     <div
       onClick={onFocus}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
       style={{
         width: '100%', height: '100%',
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden', borderRadius: 4,
         border: isActive ? '1px solid var(--accent)' : '1px solid var(--border-inactive)',
         background: 'var(--bg-terminal)', cursor: 'text',
+        position: 'relative'
       }}
     >
       <div ref={containerRef} style={{ flex: 1, minHeight: 0 }} />
+      {isHovered && (
+        <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'flex', gap: 6 }}>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleMaximize()
+            }}
+            title={isMaximized ? "Restore terminal" : "Maximize terminal"}
+            style={{
+              width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(34, 30, 24, 0.8)', border: '1px solid var(--border-inactive)',
+              borderRadius: 4, color: 'var(--text-inactive)', cursor: 'pointer',
+              fontSize: 12, backdropFilter: 'blur(4px)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#e8a045'
+              e.currentTarget.style.borderColor = 'rgba(232, 160, 69, 0.4)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'var(--text-inactive)'
+              e.currentTarget.style.borderColor = 'var(--border-inactive)'
+            }}
+          >
+            {isMaximized ? '↙' : '↗'}
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onClose()
+            }}
+            title="Close terminal"
+            style={{
+              width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(34, 30, 24, 0.8)', border: '1px solid var(--border-inactive)',
+              borderRadius: 4, color: 'var(--text-inactive)', cursor: 'pointer',
+              fontSize: 16, lineHeight: 1, paddingBottom: 2, backdropFilter: 'blur(4px)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#e07b7b'
+              e.currentTarget.style.borderColor = 'rgba(224, 123, 123, 0.4)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'var(--text-inactive)'
+              e.currentTarget.style.borderColor = 'var(--border-inactive)'
+            }}
+          >
+            ×
+          </button>
+        </div>
+      )}
     </div>
   )
 }

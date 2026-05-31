@@ -4,6 +4,7 @@ import { useAppStore } from './store/useAppStore'
 import { WorkspaceSidebar } from './components/WorkspaceSidebar/WorkspaceSidebar'
 import { WorkspaceView } from './components/WorkspaceView/WorkspaceView'
 import { WorkspaceModal } from './components/WorkspaceModal/WorkspaceModal'
+import { SettingsModal } from './components/SettingsModal/SettingsModal'
 import { Workspace, Terminal } from './types'
 
 export default function App() {
@@ -19,9 +20,15 @@ export default function App() {
   const setActiveTerminalId = useAppStore((s) => s.setActiveTerminalId)
 
   const [showCreateModal, setShowCreateModal] = useState(false)
+  const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null)
   const [loading, setLoading] = useState(true)
   const [bootstrapError, setBootstrapError] = useState<string | null>(null)
+  const settings = useAppStore((s) => s.settings)
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', settings.theme)
+  }, [settings.theme])
 
   async function spawnAndAddTerminal(workspaceId: string) {
     const terminal = await invoke<Terminal>('spawn_terminal', {
@@ -41,11 +48,11 @@ export default function App() {
     // all fire simultaneously, exhausting the system process limit.
     const spawned: Terminal[] = []
     for (const t of saved) {
-      const [scrollback, fresh] = await Promise.all([
+      const [scrollback] = await Promise.all([
         invoke<string[]>('load_scrollback', { terminalId: t.id }),
-        invoke<Terminal>('spawn_terminal', { workspaceId, shell: t.shell, cwd: t.cwd || '' }),
+        invoke<void>('respawn_terminal', { id: t.id, shell: t.shell, cwd: t.cwd || '' }),
       ])
-      spawned.push({ ...fresh, scrollback })
+      spawned.push({ ...t, scrollback })
     }
     setTerminals(workspaceId, spawned)
     setActiveTerminalId(spawned[0]?.id ?? null)
@@ -75,7 +82,12 @@ export default function App() {
   async function handleSelectWorkspace(id: string) {
     setActiveWorkspaceId(id)
     setActiveTerminalId(null)
-    await activateWorkspace(id)
+    
+    // Only activate if we haven't loaded/spawned terminals for this workspace yet
+    const currentTerminals = useAppStore.getState().terminalsByWorkspace[id]
+    if (!currentTerminals) {
+      await activateWorkspace(id)
+    }
   }
 
   async function handleCreateWorkspace(values: { name: string; emoji: string; color: string }) {
@@ -93,10 +105,12 @@ export default function App() {
     removeWorkspace(id)
     // activateWorkspace is triggered via the store's removeWorkspace selector
     // which picks the next available workspace; activate it here
-    const next = workspaces.find((w) => w.id !== id)
+    const next = useAppStore.getState().activeWorkspaceId
     if (next) {
-      setActiveWorkspaceId(next.id)
-      await activateWorkspace(next.id)
+      const currentTerminals = useAppStore.getState().terminalsByWorkspace[next]
+      if (!currentTerminals) {
+        await activateWorkspace(next)
+      }
     }
   }
 
@@ -107,14 +121,13 @@ export default function App() {
     setEditingWorkspace(null)
   }
 
-  const activeWorkspace = workspaces.find((w) => w.id === activeWorkspaceId)
-
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
       <WorkspaceSidebar
         onAddWorkspace={() => setShowCreateModal(true)}
         onSelectWorkspace={handleSelectWorkspace}
         onDeleteWorkspace={handleDeleteWorkspace}
+        onOpenSettings={() => setShowSettingsModal(true)}
       />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
         {/* Always show bootstrap/spawn errors prominently at the top */}
@@ -127,25 +140,35 @@ export default function App() {
             ⚠ {bootstrapError}
           </div>
         )}
-        {activeWorkspace ? (
-          <WorkspaceView
-            workspace={activeWorkspace}
-            onEditWorkspace={setEditingWorkspace}
-          />
+        
+        {loading ? (
+          <div style={{
+            flex: 1, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', flexDirection: 'column', gap: 8,
+          }}>
+            <span style={{ color: 'var(--text-inactive)', fontSize: 13 }}>Starting…</span>
+          </div>
+        ) : workspaces.length > 0 ? (
+          workspaces.map((ws) => (
+            <div
+              key={ws.id}
+              style={{
+                display: ws.id === activeWorkspaceId ? 'flex' : 'none',
+                flex: 1, flexDirection: 'column', height: '100%', overflow: 'hidden'
+              }}
+            >
+              <WorkspaceView
+                workspace={ws}
+                onEditWorkspace={setEditingWorkspace}
+              />
+            </div>
+          ))
         ) : (
-          <div
-            style={{
-              flex: 1, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', flexDirection: 'column', gap: 8,
-            }}
-          >
-            {loading ? (
-              <span style={{ color: 'var(--text-inactive)', fontSize: 13 }}>Starting…</span>
-            ) : (
-              <span style={{ color: 'var(--text-inactive)', fontSize: 13 }}>
-                No workspace selected
-              </span>
-            )}
+          <div style={{
+            flex: 1, display: 'flex', alignItems: 'center',
+            justifyContent: 'center', flexDirection: 'column', gap: 8,
+          }}>
+            <span style={{ color: 'var(--text-inactive)', fontSize: 13 }}>No workspace selected</span>
           </div>
         )}
       </div>
@@ -160,6 +183,10 @@ export default function App() {
           onCancel={() => setEditingWorkspace(null)}
         />
       )}
+      {showSettingsModal && (
+        <SettingsModal onClose={() => setShowSettingsModal(false)} />
+      )}
     </div>
   )
 }
+
