@@ -15,15 +15,17 @@ const HANDLE_STYLE_V = { height: 'var(--handle-size)' as const }
 export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus }: Props) {
   if (terminals.length === 0) return null
 
+  // Wrapper ensures TerminalPane fills the Panel's allocated space
   const pane = (t: TerminalType) => (
-    <TerminalPane
-      key={t.id}
-      terminalId={t.id}
-      workspaceId={workspaceId}
-      isActive={t.id === activeTerminalId}
-      scrollback={t.scrollback}
-      onFocus={() => onFocus(t.id)}
-    />
+    <div key={t.id} style={{ width: '100%', height: '100%' }}>
+      <TerminalPane
+        terminalId={t.id}
+        workspaceId={workspaceId}
+        isActive={t.id === activeTerminalId}
+        scrollback={t.scrollback}
+        onFocus={() => onFocus(t.id)}
+      />
+    </div>
   )
 
   if (terminals.length === 1) {

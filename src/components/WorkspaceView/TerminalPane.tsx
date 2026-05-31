@@ -89,12 +89,14 @@ export function TerminalPane({ terminalId, workspaceId, isActive, scrollback, on
     <div
       onClick={onFocus}
       style={{
-        flex: 1, position: 'relative', overflow: 'hidden', borderRadius: 4,
+        width: '100%', height: '100%',
+        display: 'flex', flexDirection: 'column',
+        overflow: 'hidden', borderRadius: 4,
         border: isActive ? '1px solid var(--accent)' : '1px solid var(--border-inactive)',
         background: 'var(--bg-terminal)', cursor: 'text',
       }}
     >
-      <div ref={containerRef} style={{ position: 'absolute', inset: 0 }} />
+      <div ref={containerRef} style={{ flex: 1, minHeight: 0 }} />
     </div>
   )
 }
