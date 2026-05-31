@@ -36,7 +36,7 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
 
   if (terminals.length === 2) {
     return (
-      <PanelGroup id={`${workspaceId}-h`} direction="horizontal" style={{ flex: 1, padding: 6 }}>
+      <PanelGroup id={`${workspaceId}-h`} orientation="horizontal" style={{ flex: 1, padding: 6 }}>
         <Panel defaultSize={50}>{pane(terminals[0])}</Panel>
         <PanelResizeHandle style={HANDLE_STYLE_H} />
         <Panel defaultSize={50}>{pane(terminals[1])}</Panel>
@@ -46,11 +46,11 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
 
   if (terminals.length === 3) {
     return (
-      <PanelGroup id={`${workspaceId}-h`} direction="horizontal" style={{ flex: 1, padding: 6 }}>
+      <PanelGroup id={`${workspaceId}-h`} orientation="horizontal" style={{ flex: 1, padding: 6 }}>
         <Panel defaultSize={50}>{pane(terminals[0])}</Panel>
         <PanelResizeHandle style={HANDLE_STYLE_H} />
         <Panel defaultSize={50}>
-          <PanelGroup id={`${workspaceId}-v`} direction="vertical">
+          <PanelGroup id={`${workspaceId}-v`} orientation="vertical">
             <Panel defaultSize={50}>{pane(terminals[1])}</Panel>
             <PanelResizeHandle style={HANDLE_STYLE_V} />
             <Panel defaultSize={50}>{pane(terminals[2])}</Panel>
@@ -62,9 +62,9 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
 
   // 4 terminals: 2×2 grid
   return (
-    <PanelGroup id={`${workspaceId}-v`} direction="vertical" style={{ flex: 1, padding: 6 }}>
+    <PanelGroup id={`${workspaceId}-v`} orientation="vertical" style={{ flex: 1, padding: 6 }}>
       <Panel defaultSize={50}>
-        <PanelGroup id={`${workspaceId}-h-top`} direction="horizontal">
+        <PanelGroup id={`${workspaceId}-h-top`} orientation="horizontal">
           <Panel defaultSize={50}>{pane(terminals[0])}</Panel>
           <PanelResizeHandle style={HANDLE_STYLE_H} />
           <Panel defaultSize={50}>{pane(terminals[1])}</Panel>
@@ -72,7 +72,7 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
       </Panel>
       <PanelResizeHandle style={HANDLE_STYLE_V} />
       <Panel defaultSize={50}>
-        <PanelGroup id={`${workspaceId}-h-bot`} direction="horizontal">
+        <PanelGroup id={`${workspaceId}-h-bot`} orientation="horizontal">
           <Panel defaultSize={50}>{pane(terminals[2])}</Panel>
           <PanelResizeHandle style={HANDLE_STYLE_H} />
           <Panel defaultSize={50}>{pane(terminals[3])}</Panel>
