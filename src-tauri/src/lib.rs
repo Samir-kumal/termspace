@@ -16,7 +16,7 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir).unwrap();
             let conn = db::init_db(&data_dir.join("state.db")).expect("db init failed");
             app.manage(DbState(Mutex::new(conn)));
-            app.manage(PtyManager::new(&data_dir));
+            app.manage(PtyManager::new());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
