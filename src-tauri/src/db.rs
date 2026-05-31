@@ -61,6 +61,9 @@ pub fn init_db(path: &Path) -> Result<Connection> {
             PRIMARY KEY (terminal_id, line_index)
         );",
     )?;
+    // PTY processes don't survive restarts — clear stale terminal records on every launch.
+    // Prevents record accumulation from crash cycles (seen: 30k+ stale rows exhausting PTY pool).
+    conn.execute_batch("DELETE FROM terminals; DELETE FROM scrollback;")?;
     Ok(conn)
 }
 
