@@ -69,7 +69,7 @@ shell output
 
 To avoid a race where the shell emits its initial prompt before the frontend listener is attached:
 
-1. **`spawn_terminal`** — opens SSH subprocess, stores reader in `PtyHandle.reader: Option<ChildStdout>`, does NOT start reading yet
+1. **`spawn_terminal`** — opens native PTY via `portable-pty`, stores reader in `PtyHandle.reader: Option<Box<dyn Read+Send>>`, does NOT start reading yet
 2. **`start_terminal`** — called by frontend AFTER `listen()` is registered, takes the reader and starts the background emit thread
 
 ### Persistence
@@ -131,15 +131,13 @@ npm run tauri dev
 
 ### Medium Priority
 
-- ~~**Initial cwd not restored**~~ — **Fixed**: `cd` is now embedded in the SSH remote command (`cd '/path' && exec zsh -l`), so the shell starts in the correct directory silently with no visible output.
+- ~~**Initial cwd not restored**~~ — **Fixed**: `CommandBuilder::cwd()` sets the working directory before exec; shell starts in the correct directory with no visible output.
 
 - ~~**`+terminal` button in workspace header**~~ — **Fixed**: already wired; `WorkspaceView.tsx` calls `spawn_terminal` and adds to store.
 
 - ~~**Workspace deletion**~~ — **Fixed**: delete button (×) appears on hover in the sidebar. Disabled when only one workspace remains.
 
 - ~~**Shell output before `stty`**~~ — Fixed: no `stty` sent at all with native PTY.
-
-- **SSH connection timeout UX** — if Remote Login is disabled, the error banner appears but the workspace area is empty. Should show a helpful "Enable Remote Login" instruction with a direct link.
 
 ### Low Priority
 
@@ -158,7 +156,7 @@ npm run tauri dev
 | `src/App.tsx` | Bootstrap, workspace/terminal lifecycle, all `invoke()` calls |
 | `src/components/WorkspaceView/TerminalPane.tsx` | xterm.js setup, listen/start_terminal handshake |
 | `src/components/WorkspaceView/TerminalGrid.tsx` | 1/2/3/4 terminal layout using react-resizable-panels |
-| `src-tauri/src/pty_manager.rs` | SSH subprocess management, read/write/kill |
+| `src-tauri/src/pty_manager.rs` | Native PTY management via portable-pty, read/write/resize/kill |
 | `src-tauri/src/commands.rs` | All Tauri commands exposed to frontend |
 | `src-tauri/src/db.rs` | SQLite schema + all CRUD functions |
 | `src-tauri/src/lib.rs` | App setup, state registration, invoke_handler! |
