@@ -113,10 +113,6 @@ pub fn get_terminals(conn: &Connection, workspace_id: &str) -> Result<Vec<Termin
     rows
 }
 
-pub fn create_terminal(conn: &Connection, workspace_id: &str, shell: &str, cwd: &str) -> Result<Terminal> {
-    let id = uuid::Uuid::new_v4().to_string();
-    create_terminal_with_id(conn, &id, workspace_id, shell, cwd)
-}
 
 pub fn create_terminal_with_id(conn: &Connection, id: &str, workspace_id: &str, shell: &str, cwd: &str) -> Result<Terminal> {
     let position: i64 = conn.query_row(
