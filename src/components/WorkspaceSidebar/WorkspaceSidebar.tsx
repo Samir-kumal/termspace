@@ -5,9 +5,10 @@ import { WorkspaceItem } from './WorkspaceItem'
 interface Props {
   onAddWorkspace: () => void
   onSelectWorkspace: (id: string) => void
+  onDeleteWorkspace: (id: string) => void
 }
 
-export function WorkspaceSidebar({ onAddWorkspace, onSelectWorkspace }: Props) {
+export function WorkspaceSidebar({ onAddWorkspace, onSelectWorkspace, onDeleteWorkspace }: Props) {
   const workspaces = useAppStore((s) => s.workspaces)
   const activeWorkspaceId = useAppStore((s) => s.activeWorkspaceId)
 
@@ -33,7 +34,9 @@ export function WorkspaceSidebar({ onAddWorkspace, onSelectWorkspace }: Props) {
           key={ws.id}
           workspace={ws}
           isActive={ws.id === activeWorkspaceId}
+          canDelete={workspaces.length > 1}
           onClick={() => onSelectWorkspace(ws.id)}
+          onDelete={() => onDeleteWorkspace(ws.id)}
         />
       ))}
       <AddWorkspaceButton onClick={onAddWorkspace} />

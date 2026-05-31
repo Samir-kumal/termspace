@@ -46,7 +46,6 @@ pub fn get_terminals(db: State<DbState>, workspace_id: String) -> Result<Vec<Ter
 
 #[tauri::command]
 pub fn spawn_terminal(
-    app: AppHandle,
     db: State<DbState>,
     pty: State<PtyManager>,
     workspace_id: String,
@@ -60,17 +59,22 @@ pub fn spawn_terminal(
         cwd.clone()
     };
 
-    // spawn PTY first — if it fails, no DB record is created (no orphan)
+    // resolve empty/invalid shell to the user's login shell, then a sane default
+    let resolved_shell = if shell.is_empty() {
+        std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string())
+    } else {
+        shell.clone()
+    };
+
+    // spawn PTY first — if it fails, no DB record is created (no orphan).
+    // Output is NOT streamed yet; the frontend calls `start_terminal` after
+    // attaching its listener (see start_terminal below).
     let temp_id = uuid::Uuid::new_v4().to_string();
-    let event_name = format!("pty-output-{temp_id}");
-    let app_handle = app.clone();
-    pty.spawn(temp_id.clone(), &shell, &resolved_cwd, 80, 24, move |data| {
-        let _ = app_handle.emit(&event_name, data);
-    })?;
+    pty.spawn(temp_id.clone(), &resolved_shell, &resolved_cwd, 80, 24)?;
 
     let terminal = {
         let conn = db.0.lock().unwrap();
-        db::create_terminal_with_id(&conn, &temp_id, &workspace_id, &shell, &resolved_cwd)
+        db::create_terminal_with_id(&conn, &temp_id, &workspace_id, &resolved_shell, &resolved_cwd)
             .map_err(|e| {
                 pty.kill(&temp_id); // rollback PTY if DB insert fails
                 e.to_string()
@@ -78,6 +82,21 @@ pub fn spawn_terminal(
     };
 
     Ok(terminal)
+}
+
+/// Starts streaming PTY output for a terminal. The frontend calls this once,
+/// immediately after attaching its `pty-output-<id>` event listener, so the
+/// shell's initial prompt is not lost to a race.
+#[tauri::command]
+pub fn start_terminal(
+    app: AppHandle,
+    pty: State<PtyManager>,
+    terminal_id: String,
+) -> Result<(), String> {
+    let event_name = format!("pty-output-{terminal_id}");
+    pty.start_reading(&terminal_id, move |data| {
+        let _ = app.emit(&event_name, data);
+    })
 }
 
 #[tauri::command]

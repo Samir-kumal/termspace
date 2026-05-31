@@ -15,6 +15,7 @@ export default function App() {
   const setActiveWorkspaceId = useAppStore((s) => s.setActiveWorkspaceId)
   const setTerminals = useAppStore((s) => s.setTerminals)
   const addTerminal = useAppStore((s) => s.addTerminal)
+  const removeWorkspace = useAppStore((s) => s.removeWorkspace)
   const setActiveTerminalId = useAppStore((s) => s.setActiveTerminalId)
 
   const [showCreateModal, setShowCreateModal] = useState(false)
@@ -36,16 +37,16 @@ export default function App() {
       await spawnAndAddTerminal(workspaceId)
       return
     }
-    // spawn all terminals in parallel — no serial round-trips
-    const spawned = await Promise.all(
-      saved.map(async (t) => {
-        const [scrollback, fresh] = await Promise.all([
-          invoke<string[]>('load_scrollback', { terminalId: t.id }),
-          invoke<Terminal>('spawn_terminal', { workspaceId, shell: t.shell, cwd: t.cwd || '' }),
-        ])
-        return { ...fresh, scrollback }
-      })
-    )
+    // Spawn terminals serially — SSH connections compete for MaxStartups if
+    // all fire simultaneously, exhausting the system process limit.
+    const spawned: Terminal[] = []
+    for (const t of saved) {
+      const [scrollback, fresh] = await Promise.all([
+        invoke<string[]>('load_scrollback', { terminalId: t.id }),
+        invoke<Terminal>('spawn_terminal', { workspaceId, shell: t.shell, cwd: t.cwd || '' }),
+      ])
+      spawned.push({ ...fresh, scrollback })
+    }
     setTerminals(workspaceId, spawned)
     setActiveTerminalId(spawned[0]?.id ?? null)
   }
@@ -85,6 +86,20 @@ export default function App() {
     setShowCreateModal(false)
   }
 
+  async function handleDeleteWorkspace(id: string) {
+    // Don't delete the last workspace
+    if (workspaces.length <= 1) return
+    await invoke('delete_workspace', { id })
+    removeWorkspace(id)
+    // activateWorkspace is triggered via the store's removeWorkspace selector
+    // which picks the next available workspace; activate it here
+    const next = workspaces.find((w) => w.id !== id)
+    if (next) {
+      setActiveWorkspaceId(next.id)
+      await activateWorkspace(next.id)
+    }
+  }
+
   async function handleEditWorkspace(values: { name: string; emoji: string; color: string }) {
     if (!editingWorkspace) return
     await invoke('update_workspace', { id: editingWorkspace.id, ...values })
@@ -99,8 +114,19 @@ export default function App() {
       <WorkspaceSidebar
         onAddWorkspace={() => setShowCreateModal(true)}
         onSelectWorkspace={handleSelectWorkspace}
+        onDeleteWorkspace={handleDeleteWorkspace}
       />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        {/* Always show bootstrap/spawn errors prominently at the top */}
+        {bootstrapError && (
+          <div style={{
+            padding: '8px 14px', background: 'rgba(224,123,123,0.15)',
+            borderBottom: '1px solid rgba(224,123,123,0.4)',
+            color: '#e07b7b', fontSize: 12, flexShrink: 0,
+          }}>
+            ⚠ {bootstrapError}
+          </div>
+        )}
         {activeWorkspace ? (
           <WorkspaceView
             workspace={activeWorkspace}
@@ -115,10 +141,6 @@ export default function App() {
           >
             {loading ? (
               <span style={{ color: 'var(--text-inactive)', fontSize: 13 }}>Starting…</span>
-            ) : bootstrapError ? (
-              <span style={{ color: '#e07b7b', fontSize: 12, maxWidth: 400, textAlign: 'center' }}>
-                Error: {bootstrapError}
-              </span>
             ) : (
               <span style={{ color: 'var(--text-inactive)', fontSize: 13 }}>
                 No workspace selected

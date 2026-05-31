@@ -56,10 +56,13 @@ export function TerminalPane({ terminalId, workspaceId, isActive, scrollback, on
       invoke('write_pty', { terminalId, data }).catch(console.error)
     })
 
-    // receive PTY output — store the unlisten promise in a ref so cleanup
-    // can cancel it even if the component unmounts before the promise resolves
+    // Attach listener first, then tell Rust to start streaming — prevents
+    // the shell's initial prompt from being emitted before anyone is listening.
     unlistenRef.current = listen<string>(`pty-output-${terminalId}`, (e) => {
       xterm.write(e.payload)
+    })
+    unlistenRef.current.then(() => {
+      invoke('start_terminal', { terminalId }).catch(console.error)
     })
 
     // resize observer keeps cols/rows in sync with DOM
