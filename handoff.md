@@ -13,7 +13,7 @@ A native macOS terminal workspace app built with Tauri v2 (Rust backend + React/
 | Native shell | Tauri v2 (Rust + WKWebView) |
 | Frontend | React 18 + TypeScript + Vite |
 | Terminal rendering | xterm.js + FitAddon + SerializeAddon |
-| Panel resizing | react-resizable-panels v4 |
+| Terminal layout | CSS grid (was react-resizable-panels v4 — removed to fix remounting bug) |
 | State management | Zustand |
 | Database | SQLite via rusqlite (bundled) |
 | PTY | `portable-pty` crate (native posix_openpt) |
@@ -107,6 +107,8 @@ No SSH, no Remote Login, no setup required.
 | `openpty` ENXIO on macOS 26 | SSH-based PTY workaround |
 | Zombie SSH connections exhaust `maxproc` | Changed `Promise.all` terminal spawning to serial `for...of` loop in App.tsx |
 | SSH-based PTY workaround | Replaced with portable-pty; posix_openpt works for unsigned binaries on macOS 26 |
+| PTY pool exhaustion on startup | 30k+ stale terminal DB records from crash cycles caused openpty to fail with ENXIO; fixed by clearing terminals/scrollback tables on every launch in `db::init_db` |
+| Blank terminals when adding via `+ terminal` | `react-resizable-panels` rebuilt the entire component tree on each terminal add (1→2→3→4), unmounting existing `TerminalPane`s and triggering their cleanup which killed the PTY; fixed by replacing panel layout with CSS grid — stable parent div keeps existing panes alive, React only mounts the new pane |
 
 ---
 
@@ -139,6 +141,10 @@ npm run tauri dev
 
 - ~~**Shell output before `stty`**~~ — Fixed: no `stty` sent at all with native PTY.
 
+### Medium Priority
+
+- **Drag-to-resize between terminal panes** — removed when `react-resizable-panels` was replaced with CSS grid to fix the blank-terminal remounting bug. Grid is fixed 50/50 split. To restore resize: render a static 2×2 `PanelGroup` on all counts, hiding empty slots rather than rebuilding the tree.
+
 ### Low Priority
 
 - **App icon** — uses default Tauri placeholder icons.
@@ -155,7 +161,7 @@ npm run tauri dev
 |---|---|
 | `src/App.tsx` | Bootstrap, workspace/terminal lifecycle, all `invoke()` calls |
 | `src/components/WorkspaceView/TerminalPane.tsx` | xterm.js setup, listen/start_terminal handshake |
-| `src/components/WorkspaceView/TerminalGrid.tsx` | 1/2/3/4 terminal layout using react-resizable-panels |
+| `src/components/WorkspaceView/TerminalGrid.tsx` | CSS grid layout for 1–4 terminals (fixed 50/50, no resize handles) |
 | `src-tauri/src/pty_manager.rs` | Native PTY management via portable-pty, read/write/resize/kill |
 | `src-tauri/src/commands.rs` | All Tauri commands exposed to frontend |
 | `src-tauri/src/db.rs` | SQLite schema + all CRUD functions |
