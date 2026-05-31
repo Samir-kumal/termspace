@@ -1,12 +1,12 @@
 use portable_pty::{native_pty_system, CommandBuilder, MasterPty, PtySize};
 use std::collections::HashMap;
 use std::io::{Read, Write};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 pub struct PtyHandle {
     master: Box<dyn MasterPty + Send>,
-    writer: Box<dyn Write + Send>,
-    _child: Box<dyn portable_pty::Child + Send + Sync>,
+    writer: Arc<Mutex<Box<dyn Write + Send>>>,
+    child: Box<dyn portable_pty::Child + Send + Sync>,
     reader: Option<Box<dyn Read + Send>>,
 }
 
@@ -38,6 +38,10 @@ impl PtyManager {
             cwd.to_string()
         };
 
+        if self.handles.lock().unwrap().contains_key(&terminal_id) {
+            return Err(format!("Terminal {terminal_id} already exists"));
+        }
+
         let pty_system = native_pty_system();
         let pair = pty_system
             .openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
@@ -58,13 +62,13 @@ impl PtyManager {
         let reader = pair.master
             .try_clone_reader()
             .map_err(|e| format!("clone reader: {e}"))?;
-        let writer = pair.master
-            .take_writer()
-            .map_err(|e| format!("take writer: {e}"))?;
+        let writer = Arc::new(Mutex::new(
+            pair.master.take_writer().map_err(|e| format!("take writer: {e}"))?
+        ));
 
         self.handles.lock().unwrap().insert(
             terminal_id,
-            PtyHandle { master: pair.master, writer, _child: child, reader: Some(reader) },
+            PtyHandle { master: pair.master, writer, child, reader: Some(reader) },
         );
         Ok(())
     }
@@ -89,7 +93,8 @@ impl PtyManager {
             let mut buf = [0u8; 4096];
             loop {
                 match reader.read(&mut buf) {
-                    Ok(0) | Err(_) => break,
+                    Ok(0) => break,
+                    Err(_) => break,
                     Ok(n) => on_data(String::from_utf8_lossy(&buf[..n]).to_string()),
                 }
             }
@@ -98,13 +103,14 @@ impl PtyManager {
     }
 
     pub fn write(&self, terminal_id: &str, data: &str) -> Result<(), String> {
-        let mut handles = self.handles.lock().unwrap();
-        handles
-            .get_mut(terminal_id)
-            .ok_or_else(|| format!("No PTY for {terminal_id}"))?
-            .writer
-            .write_all(data.as_bytes())
-            .map_err(|e| e.to_string())
+        let writer = {
+            let handles = self.handles.lock().unwrap();
+            handles.get(terminal_id)
+                .ok_or_else(|| format!("No PTY for {terminal_id}"))?
+                .writer.clone()
+        };
+        let result = writer.lock().unwrap().write_all(data.as_bytes()).map_err(|e| e.to_string());
+        result
     }
 
     /// Resize via TIOCSWINSZ ioctl — shell receives SIGWINCH silently.
@@ -119,14 +125,21 @@ impl PtyManager {
     }
 
     pub fn kill(&self, terminal_id: &str) {
-        self.handles.lock().unwrap().remove(terminal_id);
+        if let Some(mut handle) = self.handles.lock().unwrap().remove(terminal_id) {
+            let _ = handle.child.kill();
+        }
+    }
+}
+
+impl Default for PtyManager {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::sync::{Arc, Mutex};
     use std::time::{Duration, Instant};
 
     fn mgr() -> PtyManager {
@@ -185,7 +198,6 @@ mod tests {
         })
         .expect("start_reading failed");
 
-        std::thread::sleep(Duration::from_millis(300));
         m.write("t4", "echo pty_native_test\n").expect("write failed");
 
         let deadline = Instant::now() + Duration::from_secs(5);
