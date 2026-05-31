@@ -1,4 +1,4 @@
-use rusqlite::{Connection, Result};
+use rusqlite::{params, Connection, Result};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -64,6 +64,99 @@ pub fn init_db(path: &Path) -> Result<Connection> {
     Ok(conn)
 }
 
+pub fn get_workspaces(conn: &Connection) -> Result<Vec<Workspace>> {
+    let mut stmt = conn.prepare(
+        "SELECT id,name,emoji,color,position,created_at FROM workspaces ORDER BY position",
+    )?;
+    let rows = stmt.query_map([], |r| Ok(Workspace {
+        id: r.get(0)?, name: r.get(1)?, emoji: r.get(2)?,
+        color: r.get(3)?, position: r.get(4)?, created_at: r.get(5)?,
+    }))?.collect();
+    rows
+}
+
+pub fn create_workspace(conn: &Connection, name: &str, emoji: &str, color: &str) -> Result<Workspace> {
+    let id = uuid::Uuid::new_v4().to_string();
+    let position: i64 = conn.query_row(
+        "SELECT COALESCE(MAX(position)+1,0) FROM workspaces", [], |r| r.get(0),
+    )?;
+    let created_at = now_ms();
+    conn.execute(
+        "INSERT INTO workspaces (id,name,emoji,color,position,created_at) VALUES (?1,?2,?3,?4,?5,?6)",
+        params![id, name, emoji, color, position, created_at],
+    )?;
+    Ok(Workspace { id, name: name.into(), emoji: emoji.into(), color: color.into(), position, created_at })
+}
+
+pub fn update_workspace(conn: &Connection, id: &str, name: &str, emoji: &str, color: &str) -> Result<()> {
+    conn.execute(
+        "UPDATE workspaces SET name=?1,emoji=?2,color=?3 WHERE id=?4",
+        params![name, emoji, color, id],
+    )?;
+    Ok(())
+}
+
+pub fn delete_workspace(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute("DELETE FROM workspaces WHERE id=?1", params![id])?;
+    Ok(())
+}
+
+pub fn get_terminals(conn: &Connection, workspace_id: &str) -> Result<Vec<Terminal>> {
+    let mut stmt = conn.prepare(
+        "SELECT id,workspace_id,shell,cwd,position,size_percent,created_at
+         FROM terminals WHERE workspace_id=?1 ORDER BY position",
+    )?;
+    let rows = stmt.query_map(params![workspace_id], |r| Ok(Terminal {
+        id: r.get(0)?, workspace_id: r.get(1)?, shell: r.get(2)?,
+        cwd: r.get(3)?, position: r.get(4)?, size_percent: r.get(5)?, created_at: r.get(6)?,
+    }))?.collect();
+    rows
+}
+
+pub fn create_terminal(conn: &Connection, workspace_id: &str, shell: &str, cwd: &str) -> Result<Terminal> {
+    let id = uuid::Uuid::new_v4().to_string();
+    create_terminal_with_id(conn, &id, workspace_id, shell, cwd)
+}
+
+pub fn create_terminal_with_id(conn: &Connection, id: &str, workspace_id: &str, shell: &str, cwd: &str) -> Result<Terminal> {
+    let position: i64 = conn.query_row(
+        "SELECT COALESCE(MAX(position)+1,0) FROM terminals WHERE workspace_id=?1",
+        params![workspace_id], |r| r.get(0),
+    )?;
+    let created_at = now_ms();
+    conn.execute(
+        "INSERT INTO terminals (id,workspace_id,shell,cwd,position,size_percent,created_at)
+         VALUES (?1,?2,?3,?4,?5,?6,?7)",
+        params![id, workspace_id, shell, cwd, position, 50.0f64, created_at],
+    )?;
+    Ok(Terminal { id: id.into(), workspace_id: workspace_id.into(), shell: shell.into(), cwd: cwd.into(), position, size_percent: 50.0, created_at })
+}
+
+pub fn delete_terminal(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute("DELETE FROM terminals WHERE id=?1", params![id])?;
+    Ok(())
+}
+
+pub fn save_scrollback(conn: &Connection, terminal_id: &str, lines: &[String]) -> Result<()> {
+    conn.execute("DELETE FROM scrollback WHERE terminal_id=?1", params![terminal_id])?;
+    let start = lines.len().saturating_sub(5000);
+    for (i, line) in lines[start..].iter().enumerate() {
+        conn.execute(
+            "INSERT INTO scrollback (terminal_id,line_index,data) VALUES (?1,?2,?3)",
+            params![terminal_id, i as i64, line],
+        )?;
+    }
+    Ok(())
+}
+
+pub fn load_scrollback(conn: &Connection, terminal_id: &str) -> Result<Vec<String>> {
+    let mut stmt = conn.prepare(
+        "SELECT data FROM scrollback WHERE terminal_id=?1 ORDER BY line_index",
+    )?;
+    let rows = stmt.query_map(params![terminal_id], |r| r.get(0))?.collect();
+    rows
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -106,5 +199,81 @@ mod tests {
             )
             .unwrap();
         assert_eq!(count, 3);
+    }
+
+    #[test]
+    fn test_workspace_crud() {
+        let conn = open_test_db();
+        conn.execute(
+            "INSERT INTO workspaces (id,name,emoji,color,position,created_at)
+             VALUES (?1,?2,?3,?4,?5,?6)",
+            params!["ws-1", "Work", "🔥", "#e8a045", 0i64, 1_000_000i64],
+        ).unwrap();
+        let name: String = conn
+            .query_row("SELECT name FROM workspaces WHERE id=?1", params!["ws-1"], |r| r.get(0))
+            .unwrap();
+        assert_eq!(name, "Work");
+
+        conn.execute("UPDATE workspaces SET name=?1 WHERE id=?2", params!["Updated", "ws-1"]).unwrap();
+        let updated: String = conn
+            .query_row("SELECT name FROM workspaces WHERE id=?1", params!["ws-1"], |r| r.get(0))
+            .unwrap();
+        assert_eq!(updated, "Updated");
+
+        conn.execute("DELETE FROM workspaces WHERE id=?1", params!["ws-1"]).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT count(*) FROM workspaces", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_terminal_cascade_delete() {
+        let conn = open_test_db();
+        conn.execute(
+            "INSERT INTO workspaces (id,name,emoji,color,position,created_at)
+             VALUES (?1,?2,?3,?4,?5,?6)",
+            params!["ws-1", "Work", "🔥", "#e8a045", 0i64, 1_000_000i64],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO terminals (id,workspace_id,shell,cwd,position,size_percent,created_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7)",
+            params!["t-1", "ws-1", "zsh", "/tmp", 0i64, 50.0f64, 1_000_001i64],
+        ).unwrap();
+        conn.execute("DELETE FROM workspaces WHERE id=?1", params!["ws-1"]).unwrap();
+        let count: i64 = conn
+            .query_row("SELECT count(*) FROM terminals", [], |r| r.get(0))
+            .unwrap();
+        assert_eq!(count, 0);
+    }
+
+    #[test]
+    fn test_scrollback_save_and_load() {
+        let conn = open_test_db();
+        conn.execute(
+            "INSERT INTO workspaces (id,name,emoji,color,position,created_at)
+             VALUES (?1,?2,?3,?4,?5,?6)",
+            params!["ws-1", "Work", "🔥", "#e8a045", 0i64, 1_000_000i64],
+        ).unwrap();
+        conn.execute(
+            "INSERT INTO terminals (id,workspace_id,shell,cwd,position,size_percent,created_at)
+             VALUES (?1,?2,?3,?4,?5,?6,?7)",
+            params!["t-1", "ws-1", "zsh", "/tmp", 0i64, 50.0f64, 1_000_001i64],
+        ).unwrap();
+        for (i, line) in ["line one\n", "line two\n"].iter().enumerate() {
+            conn.execute(
+                "INSERT OR REPLACE INTO scrollback (terminal_id,line_index,data) VALUES (?1,?2,?3)",
+                params!["t-1", i as i64, line],
+            ).unwrap();
+        }
+        let mut stmt = conn
+            .prepare("SELECT data FROM scrollback WHERE terminal_id=?1 ORDER BY line_index")
+            .unwrap();
+        let loaded: Vec<String> = stmt
+            .query_map(params!["t-1"], |r| r.get(0))
+            .unwrap()
+            .map(|r| r.unwrap())
+            .collect();
+        assert_eq!(loaded, vec!["line one\n", "line two\n"]);
     }
 }
