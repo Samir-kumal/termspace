@@ -26,6 +26,16 @@ pub struct Terminal {
     pub created_at: i64,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct BrowserPane {
+    pub id: String,
+    pub workspace_id: String,
+    pub url: String,
+    pub position: i64,
+    pub created_at: i64,
+}
+
 pub fn now_ms() -> i64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -59,6 +69,13 @@ pub fn init_db(path: &Path) -> Result<Connection> {
             line_index  INTEGER NOT NULL,
             data        TEXT NOT NULL,
             PRIMARY KEY (terminal_id, line_index)
+        );
+        CREATE TABLE IF NOT EXISTS browser_panes (
+            id           TEXT PRIMARY KEY,
+            workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+            url          TEXT NOT NULL DEFAULT 'about:blank',
+            position     INTEGER NOT NULL DEFAULT 0,
+            created_at   INTEGER NOT NULL
         );",
     )?;
     // We no longer clear terminals on launch.
@@ -156,6 +173,40 @@ pub fn load_scrollback(conn: &Connection, terminal_id: &str) -> Result<Vec<Strin
     rows
 }
 
+pub fn create_browser_pane(conn: &Connection, id: &str, workspace_id: &str, url: &str) -> Result<BrowserPane> {
+    let position: i64 = conn.query_row(
+        "SELECT COALESCE(MAX(position)+1,0) FROM browser_panes WHERE workspace_id=?1",
+        params![workspace_id], |r| r.get(0),
+    )?;
+    let created_at = now_ms();
+    conn.execute(
+        "INSERT INTO browser_panes (id,workspace_id,url,position,created_at) VALUES (?1,?2,?3,?4,?5)",
+        params![id, workspace_id, url, position, created_at],
+    )?;
+    Ok(BrowserPane { id: id.into(), workspace_id: workspace_id.into(), url: url.into(), position, created_at })
+}
+
+pub fn get_browser_panes(conn: &Connection, workspace_id: &str) -> Result<Vec<BrowserPane>> {
+    let mut stmt = conn.prepare(
+        "SELECT id,workspace_id,url,position,created_at FROM browser_panes WHERE workspace_id=?1 ORDER BY position",
+    )?;
+    let rows = stmt.query_map(params![workspace_id], |r| Ok(BrowserPane {
+        id: r.get(0)?, workspace_id: r.get(1)?, url: r.get(2)?,
+        position: r.get(3)?, created_at: r.get(4)?,
+    }))?.collect();
+    rows
+}
+
+pub fn update_browser_pane_url(conn: &Connection, id: &str, url: &str) -> Result<()> {
+    conn.execute("UPDATE browser_panes SET url=?1 WHERE id=?2", params![url, id])?;
+    Ok(())
+}
+
+pub fn delete_browser_pane(conn: &Connection, id: &str) -> Result<()> {
+    conn.execute("DELETE FROM browser_panes WHERE id=?1", params![id])?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -184,6 +235,64 @@ mod tests {
         )
         .unwrap();
         conn
+    }
+
+    fn open_test_db_with_browser() -> Connection {
+        let conn = Connection::open_in_memory().unwrap();
+        conn.execute_batch("PRAGMA foreign_keys=ON;").unwrap();
+        conn.execute_batch(
+            "CREATE TABLE IF NOT EXISTS workspaces (
+                id TEXT PRIMARY KEY, name TEXT NOT NULL,
+                emoji TEXT NOT NULL DEFAULT '💻', color TEXT NOT NULL DEFAULT '#e8a045',
+                position INTEGER NOT NULL, created_at INTEGER NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS browser_panes (
+                id           TEXT PRIMARY KEY,
+                workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+                url          TEXT NOT NULL DEFAULT 'about:blank',
+                position     INTEGER NOT NULL DEFAULT 0,
+                created_at   INTEGER NOT NULL
+            );",
+        ).unwrap();
+        conn
+    }
+
+    #[test]
+    fn test_browser_pane_crud() {
+        let conn = open_test_db_with_browser();
+        conn.execute(
+            "INSERT INTO workspaces (id,name,emoji,color,position,created_at) VALUES (?1,?2,?3,?4,?5,?6)",
+            params!["ws-1", "Work", "🔥", "#e8a045", 0i64, 1_000_000i64],
+        ).unwrap();
+
+        create_browser_pane(&conn, "bp-1", "ws-1", "http://localhost:3000").unwrap();
+
+        let panes = get_browser_panes(&conn, "ws-1").unwrap();
+        assert_eq!(panes.len(), 1);
+        assert_eq!(panes[0].url, "http://localhost:3000");
+
+        update_browser_pane_url(&conn, "bp-1", "http://localhost:3000/dashboard").unwrap();
+        let panes2 = get_browser_panes(&conn, "ws-1").unwrap();
+        assert_eq!(panes2[0].url, "http://localhost:3000/dashboard");
+
+        delete_browser_pane(&conn, "bp-1").unwrap();
+        let panes3 = get_browser_panes(&conn, "ws-1").unwrap();
+        assert_eq!(panes3.len(), 0);
+    }
+
+    #[test]
+    fn test_browser_pane_cascade_delete() {
+        let conn = open_test_db_with_browser();
+        conn.execute(
+            "INSERT INTO workspaces (id,name,emoji,color,position,created_at) VALUES (?1,?2,?3,?4,?5,?6)",
+            params!["ws-1", "Work", "🔥", "#e8a045", 0i64, 1_000_000i64],
+        ).unwrap();
+        create_browser_pane(&conn, "bp-1", "ws-1", "http://localhost:3000").unwrap();
+        conn.execute("DELETE FROM workspaces WHERE id=?1", params!["ws-1"]).unwrap();
+        let count: i64 = conn.query_row(
+            "SELECT count(*) FROM browser_panes", [], |r| r.get(0)
+        ).unwrap();
+        assert_eq!(count, 0);
     }
 
     #[test]
