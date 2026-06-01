@@ -25,9 +25,9 @@ export function SettingsModal({ onClose }: Props) {
       exit={{ opacity: 0 }}
       style={{
         position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
-        background: 'rgba(0,0,0,0.5)', zIndex: 100,
+        background: 'rgba(0,0,0,0.6)', zIndex: 100,
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        backdropFilter: 'blur(2px)'
+        backdropFilter: 'blur(4px)'
       }}
       onClick={onClose}
     >
@@ -37,23 +37,27 @@ export function SettingsModal({ onClose }: Props) {
         exit={{ opacity: 0, y: 15, scale: 0.98 }}
         style={{
           background: 'var(--bg-main)', border: '1px solid var(--border-inactive)',
-          borderRadius: 8, padding: 24, width: 400,
-          display: 'flex', flexDirection: 'column', gap: 16
+          borderRadius: 12, padding: 32, width: 400, maxWidth: '90%',
+          display: 'flex', flexDirection: 'column', gap: 20,
+          boxShadow: '0 16px 40px rgba(0,0,0,0.2)'
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h2 style={{ fontSize: 18, color: 'var(--text-active)', marginBottom: 8 }}>Settings</h2>
+        <h2 style={{ fontSize: 18, color: 'var(--text-active)', marginBottom: 4, fontWeight: 600, marginTop: 0 }}>Settings</h2>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={{ fontSize: 13, color: 'var(--text-inactive)' }}>Theme</label>
+          <label style={{ fontSize: 13, color: 'var(--text-inactive)', fontWeight: 500 }}>Theme</label>
           <select
             value={theme}
             onChange={(e) => setTheme(e.target.value as Settings['theme'])}
             style={{
-              padding: '8px 12px', background: 'var(--bg-item)',
-              border: '1px solid var(--border-inactive)', borderRadius: 4,
-              color: 'var(--text-active)', outline: 'none', fontSize: 14
+              padding: '10px 14px', background: 'var(--bg-sidebar)',
+              border: '1px solid var(--border-inactive)', borderRadius: 6,
+              color: 'var(--text-active)', outline: 'none', fontSize: 14,
+              transition: 'border 0.2s', width: '100%'
             }}
+            onFocus={(e) => e.currentTarget.style.borderColor = 'var(--accent)'}
+            onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border-inactive)'}
           >
             <option value="warm-dark">Warm Dark (Default)</option>
             <option value="cold-dark">Cold Dark</option>
@@ -62,7 +66,7 @@ export function SettingsModal({ onClose }: Props) {
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label style={{ fontSize: 13, color: 'var(--text-inactive)' }}>Terminal Font Size</label>
+          <label style={{ fontSize: 13, color: 'var(--text-inactive)', fontWeight: 500 }}>Terminal Font Size</label>
           <input
             type="number"
             min={8}
@@ -70,10 +74,13 @@ export function SettingsModal({ onClose }: Props) {
             value={fontSize}
             onChange={(e) => setFontSize(Number(e.target.value))}
             style={{
-              padding: '8px 12px', background: 'var(--bg-item)',
-              border: '1px solid var(--border-inactive)', borderRadius: 4,
-              color: 'var(--text-active)', outline: 'none', fontSize: 14
+              padding: '10px 14px', background: 'var(--bg-sidebar)',
+              border: '1px solid var(--border-inactive)', borderRadius: 6,
+              color: 'var(--text-active)', outline: 'none', fontSize: 14,
+              transition: 'border 0.2s', width: '100%'
             }}
+            onFocus={(e) => e.currentTarget.style.borderColor = 'var(--accent)'}
+            onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border-inactive)'}
           />
         </div>
 
@@ -82,9 +89,12 @@ export function SettingsModal({ onClose }: Props) {
             onClick={onClose}
             style={{
               padding: '8px 16px', background: 'transparent',
-              border: '1px solid var(--border-inactive)', borderRadius: 4,
-              color: 'var(--text-inactive)', cursor: 'pointer', fontSize: 13
+              border: '1px solid var(--border-inactive)', borderRadius: 6,
+              color: 'var(--text-inactive)', cursor: 'pointer', fontSize: 14, fontWeight: 500,
+              transition: 'background 0.2s'
             }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-item)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
           >
             Cancel
           </button>
@@ -92,9 +102,12 @@ export function SettingsModal({ onClose }: Props) {
             onClick={handleSave}
             style={{
               padding: '8px 16px', background: 'var(--accent)',
-              border: 'none', borderRadius: 4,
-              color: 'var(--bg-main)', cursor: 'pointer', fontSize: 13, fontWeight: 500
+              border: 'none', borderRadius: 6,
+              color: 'var(--bg-main)', cursor: 'pointer', fontSize: 14, fontWeight: 600,
+              transition: 'opacity 0.2s'
             }}
+            onMouseEnter={(e) => e.currentTarget.style.opacity = '0.8'}
+            onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
           >
             Save Changes
           </button>

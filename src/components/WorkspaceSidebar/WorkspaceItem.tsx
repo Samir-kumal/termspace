@@ -20,12 +20,13 @@ export function WorkspaceItem({ workspace, isActive, canDelete, isCollapsed, onC
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: 8,
-        padding: isCollapsed ? '7px 0' : '7px 10px', borderRadius: 4,
+        display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: 10,
+        padding: isCollapsed ? '8px 0' : '8px 12px', borderRadius: 6,
         borderLeft: isActive ? '3px solid var(--accent)' : '3px solid transparent',
-        background: isActive ? 'var(--bg-item-active)' : 'transparent',
+        background: isActive ? 'var(--bg-item-active)' : (hovered ? 'var(--bg-item)' : 'transparent'),
         color: isActive ? 'var(--text-active)' : 'var(--text-inactive)',
-        fontSize: 13, cursor: 'pointer', transition: 'background 0.1s',
+        fontWeight: isActive ? 500 : 400,
+        fontSize: 13, cursor: 'pointer', transition: 'all 0.15s ease',
         position: 'relative',
       }}
     >

@@ -24,6 +24,7 @@ export function WorkspaceModal({ initial, onSave, onCancel }: Props) {
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
+        backdropFilter: 'blur(4px)'
       }}
       onClick={onCancel}
     >
@@ -32,77 +33,100 @@ export function WorkspaceModal({ initial, onSave, onCancel }: Props) {
         animate={{ opacity: 1, y: 0, scale: 1 }}
         exit={{ opacity: 0, y: 15, scale: 0.98 }}
         style={{
-          background: 'var(--bg-sidebar)', border: '1px solid var(--border-inactive)',
-          borderRadius: 8, padding: 24, minWidth: 320,
-          display: 'flex', flexDirection: 'column', gap: 16,
+          background: 'var(--bg-main)', border: '1px solid var(--border-inactive)',
+          borderRadius: 12, padding: 32, width: 400, maxWidth: '90%',
+          display: 'flex', flexDirection: 'column', gap: 20,
+          boxShadow: '0 16px 40px rgba(0,0,0,0.2)'
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <h3 style={{ color: 'var(--text-active)', fontSize: 15 }}>
+        <h3 style={{ color: 'var(--text-active)', fontSize: 18, fontWeight: 600, margin: 0 }}>
           {initial ? 'Edit workspace' : 'New workspace'}
         </h3>
 
-        <input
-          placeholder="Workspace name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          autoFocus
-          style={{
-            background: 'var(--bg-main)', border: '1px solid var(--border-inactive)',
-            borderRadius: 4, padding: '8px 10px', color: 'var(--text-active)',
-            fontSize: 13, outline: 'none',
-          }}
-        />
-
-        <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-          {EMOJIS.map((e) => (
-            <button
-              key={e}
-              onClick={() => setEmoji(e)}
-              style={{
-                fontSize: 18, background: 'none', cursor: 'pointer', padding: 4, borderRadius: 4,
-                border: emoji === e ? '1px solid var(--accent)' : '1px solid transparent',
-              }}
-            >
-              {e}
-            </button>
-          ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={{ fontSize: 13, color: 'var(--text-inactive)', fontWeight: 500 }}>Name</label>
+          <input
+            placeholder="e.g., Backend, Frontend, DevOps"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            autoFocus
+            style={{
+              background: 'var(--bg-sidebar)', border: '1px solid var(--border-inactive)',
+              borderRadius: 6, padding: '10px 14px', color: 'var(--text-active)',
+              fontSize: 14, outline: 'none', transition: 'border 0.2s', width: '100%'
+            }}
+            onFocus={(e) => e.currentTarget.style.borderColor = 'var(--accent)'}
+            onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border-inactive)'}
+          />
         </div>
 
-        <div style={{ display: 'flex', gap: 6 }}>
-          {COLORS.map((c) => (
-            <button
-              key={c}
-              onClick={() => setColor(c)}
-              style={{
-                width: 24, height: 24, borderRadius: '50%', background: c, cursor: 'pointer',
-                border: color === c ? '2px solid white' : '2px solid transparent',
-              }}
-            />
-          ))}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={{ fontSize: 13, color: 'var(--text-inactive)', fontWeight: 500 }}>Icon</label>
+          <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+            {EMOJIS.map((e) => (
+              <button
+                key={e}
+                onClick={() => setEmoji(e)}
+                style={{
+                  fontSize: 20, background: emoji === e ? 'var(--bg-item-active)' : 'var(--bg-sidebar)', 
+                  cursor: 'pointer', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  borderRadius: 8, transition: 'all 0.15s',
+                  border: emoji === e ? '1px solid var(--accent)' : '1px solid var(--border-inactive)',
+                }}
+              >
+                {e}
+              </button>
+            ))}
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={{ fontSize: 13, color: 'var(--text-inactive)', fontWeight: 500 }}>Color</label>
+          <div style={{ display: 'flex', gap: 8 }}>
+            {COLORS.map((c) => (
+              <button
+                key={c}
+                onClick={() => setColor(c)}
+                style={{
+                  width: 28, height: 28, borderRadius: '50%', background: c, cursor: 'pointer',
+                  border: color === c ? '2px solid var(--text-active)' : '2px solid transparent',
+                  boxShadow: color === c ? `0 0 0 2px ${c}` : 'none',
+                  transition: 'all 0.15s'
+                }}
+              />
+            ))}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 12 }}>
           <button
             aria-label="cancel"
             onClick={onCancel}
             style={{
-              padding: '6px 14px', background: 'none',
-              border: '1px solid var(--border-inactive)', borderRadius: 4,
-              color: 'var(--text-inactive)', cursor: 'pointer', fontSize: 13,
+              padding: '8px 16px', background: 'transparent',
+              border: '1px solid var(--border-inactive)', borderRadius: 6,
+              color: 'var(--text-inactive)', cursor: 'pointer', fontSize: 14, fontWeight: 500,
+              transition: 'background 0.2s'
             }}
+            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--bg-item)'}
+            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
           >
             Cancel
           </button>
           <button
             aria-label={initial ? 'save' : 'create'}
             onClick={() => name.trim() && onSave({ name: name.trim(), emoji, color })}
+            disabled={!name.trim()}
             style={{
-              padding: '6px 14px', background: 'var(--accent)', border: 'none',
-              borderRadius: 4, color: '#1a1612', cursor: 'pointer', fontSize: 13, fontWeight: 600,
+              padding: '8px 16px', background: 'var(--accent)',
+              border: 'none', borderRadius: 6,
+              color: 'var(--bg-main)', cursor: name.trim() ? 'pointer' : 'not-allowed', 
+              fontSize: 14, fontWeight: 600, opacity: name.trim() ? 1 : 0.5,
+              transition: 'opacity 0.2s'
             }}
           >
-            {initial ? 'Save' : 'Create'}
+            {initial ? 'Save Changes' : 'Create Workspace'}
           </button>
         </div>
       </motion.div>

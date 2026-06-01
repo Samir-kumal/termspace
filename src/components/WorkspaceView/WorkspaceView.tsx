@@ -55,13 +55,46 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
         onAddTerminal={handleAddTerminal}
         onEditWorkspace={() => onEditWorkspace(workspace)}
       />
-      <TerminalGrid
-        workspaceId={workspace.id}
-        terminals={terminals}
-        activeTerminalId={activeTerminalId}
-        onFocus={setActiveTerminalId}
-        onClose={handleCloseTerminal}
-      />
+      {terminals.length > 0 ? (
+        <TerminalGrid
+          workspaceId={workspace.id}
+          terminals={terminals}
+          activeTerminalId={activeTerminalId}
+          onFocus={setActiveTerminalId}
+          onClose={handleCloseTerminal}
+        />
+      ) : (
+        <div style={{
+          flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
+          flexDirection: 'column', gap: 16, background: 'var(--bg-main)'
+        }}>
+          <div style={{ fontSize: 48, opacity: 0.5 }}>{workspace.emoji}</div>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            <span style={{ color: 'var(--text-inactive)', fontSize: 16, fontWeight: 500, letterSpacing: 0.2 }}>Workspace is empty</span>
+            <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>Spawn a terminal to begin working</span>
+          </div>
+          <button 
+            onClick={handleAddTerminal}
+            style={{
+              marginTop: 8, padding: '10px 20px', background: 'transparent',
+              border: '1px dashed var(--border-inactive)', borderRadius: 8, color: 'var(--text-inactive)',
+              fontSize: 14, fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = 'var(--text-active)'
+              e.currentTarget.style.borderColor = 'var(--text-inactive)'
+              e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'var(--text-inactive)'
+              e.currentTarget.style.borderColor = 'var(--border-inactive)'
+              e.currentTarget.style.background = 'transparent'
+            }}
+          >
+            + New Terminal
+          </button>
+        </div>
+      )}
     </div>
   )
 }

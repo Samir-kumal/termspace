@@ -21,7 +21,7 @@ export function WorkspaceSidebar({ isCollapsed, onToggleCollapse, onAddWorkspace
       style={{
         width: '100%',
         height: '100%', background: 'var(--bg-sidebar)',
-        display: 'flex', flexDirection: 'column', padding: 8, gap: 2,
+        display: 'flex', flexDirection: 'column', padding: '12px 10px', gap: 4,
       }}
     >
       <div
@@ -29,7 +29,7 @@ export function WorkspaceSidebar({ isCollapsed, onToggleCollapse, onAddWorkspace
           display: 'flex',
           alignItems: 'center',
           justifyContent: isCollapsed ? 'center' : 'space-between',
-          padding: isCollapsed ? '4px 0 8px' : '4px 2px 8px',
+          padding: isCollapsed ? '0 0 12px' : '0 4px 12px',
         }}
       >
         {!isCollapsed && (
@@ -96,11 +96,11 @@ export function WorkspaceSidebar({ isCollapsed, onToggleCollapse, onAddWorkspace
         onClick={onOpenSettings}
         title={isCollapsed ? 'Settings' : undefined}
         style={{
-          display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: 8,
-          padding: isCollapsed ? '8px 0' : '8px 10px', width: '100%', background: 'transparent',
+          display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: 10,
+          padding: isCollapsed ? '8px 0' : '8px 12px', width: '100%', background: 'transparent',
           border: 'none', borderRadius: 6, color: 'var(--text-inactive)',
           cursor: 'pointer', fontSize: 13, textAlign: 'left',
-          marginTop: 'auto'
+          marginTop: 'auto', transition: 'all 0.15s ease'
         }}
         onMouseEnter={(e) => {
           e.currentTarget.style.background = 'var(--bg-item)'

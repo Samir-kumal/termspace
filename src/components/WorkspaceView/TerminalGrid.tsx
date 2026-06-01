@@ -88,7 +88,7 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
   // To prevent the React tree from rebuilding and unmounting TerminalPanes,
   // we render a static 2x2 layout using stable ids.
   return (
-    <Group orientation="horizontal" id="main-group" style={{ flex: 1, padding: 6, gap: 4 }}>
+    <Group orientation="horizontal" id="main-group" style={{ flex: 1, padding: 12, gap: 12 }}>
       {(t0 || t2) && (
         <Panel id="left-col" defaultSize={t1 || t3 ? 50 : 100}>
           <Group orientation="vertical" id="left-col-group">

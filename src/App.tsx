@@ -239,9 +239,24 @@ export default function App() {
           ) : (
             <div style={{
               flex: 1, display: 'flex', alignItems: 'center',
-              justifyContent: 'center', flexDirection: 'column', gap: 8,
+              justifyContent: 'center', flexDirection: 'column', gap: 16,
+              background: 'var(--bg-main)'
             }}>
-              <span style={{ color: 'var(--text-inactive)', fontSize: 13 }}>No workspace selected</span>
+              <div style={{ fontSize: 48, opacity: 0.5 }}>🚀</div>
+              <span style={{ color: 'var(--text-inactive)', fontSize: 16, fontWeight: 500, letterSpacing: 0.2 }}>Create a workspace to get started</span>
+              <button 
+                onClick={() => setShowCreateModal(true)}
+                style={{
+                  marginTop: 8, padding: '10px 20px', background: 'var(--accent)',
+                  border: 'none', borderRadius: 8, color: 'var(--bg-main)',
+                  fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                  transition: 'opacity 0.2s'
+                }}
+                onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+              >
+                + New Workspace
+              </button>
             </div>
           )}
         </Panel>

@@ -129,15 +129,19 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
       style={{
         width: '100%', height: '100%',
         display: 'flex', flexDirection: 'column',
-        overflow: 'hidden', borderRadius: 4,
+        overflow: 'hidden', borderRadius: 8,
         border: isActive ? '1px solid var(--accent)' : '1px solid var(--border-inactive)',
+        boxShadow: isActive ? '0 0 0 1px var(--accent), 0 4px 12px rgba(0,0,0,0.1)' : '0 2px 8px rgba(0,0,0,0.05)',
         background: 'var(--bg-terminal)', cursor: 'text',
-        position: 'relative'
+        position: 'relative',
+        transition: 'border 0.2s, box-shadow 0.2s'
       }}
     >
-      <div ref={containerRef} style={{ flex: 1, minHeight: 0 }} />
+      <div style={{ flex: 1, minHeight: 0, padding: '10px 0 10px 12px' }}>
+        <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      </div>
       {isHovered && (
-        <div style={{ position: 'absolute', top: 8, right: 8, zIndex: 10, display: 'flex', gap: 6 }}>
+        <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, display: 'flex', gap: 6 }}>
           <button
             onClick={(e) => {
               e.stopPropagation()
@@ -145,18 +149,20 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
             }}
             title={isMaximized ? "Restore terminal" : "Maximize terminal"}
             style={{
-              width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
               background: 'rgba(34, 30, 24, 0.8)', border: '1px solid var(--border-inactive)',
-              borderRadius: 4, color: 'var(--text-inactive)', cursor: 'pointer',
-              fontSize: 12, backdropFilter: 'blur(4px)'
+              borderRadius: 6, color: 'var(--text-inactive)', cursor: 'pointer',
+              fontSize: 12, backdropFilter: 'blur(4px)', transition: 'all 0.15s'
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.color = '#e8a045'
-              e.currentTarget.style.borderColor = 'rgba(232, 160, 69, 0.4)'
+              e.currentTarget.style.borderColor = 'rgba(232, 160, 69, 0.5)'
+              e.currentTarget.style.background = 'rgba(232, 160, 69, 0.1)'
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.color = 'var(--text-inactive)'
               e.currentTarget.style.borderColor = 'var(--border-inactive)'
+              e.currentTarget.style.background = 'rgba(34, 30, 24, 0.8)'
             }}
           >
             {isMaximized ? '↙' : '↗'}
@@ -168,18 +174,20 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
             }}
             title="Close terminal"
             style={{
-              width: 24, height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
               background: 'rgba(34, 30, 24, 0.8)', border: '1px solid var(--border-inactive)',
-              borderRadius: 4, color: 'var(--text-inactive)', cursor: 'pointer',
-              fontSize: 16, lineHeight: 1, paddingBottom: 2, backdropFilter: 'blur(4px)'
+              borderRadius: 6, color: 'var(--text-inactive)', cursor: 'pointer',
+              fontSize: 16, lineHeight: 1, paddingBottom: 2, backdropFilter: 'blur(4px)', transition: 'all 0.15s'
             }}
             onMouseEnter={(e) => {
               e.currentTarget.style.color = '#e07b7b'
-              e.currentTarget.style.borderColor = 'rgba(224, 123, 123, 0.4)'
+              e.currentTarget.style.borderColor = 'rgba(224, 123, 123, 0.5)'
+              e.currentTarget.style.background = 'rgba(224, 123, 123, 0.1)'
             }}
             onMouseLeave={(e) => {
               e.currentTarget.style.color = 'var(--text-inactive)'
               e.currentTarget.style.borderColor = 'var(--border-inactive)'
+              e.currentTarget.style.background = 'rgba(34, 30, 24, 0.8)'
             }}
           >
             ×
