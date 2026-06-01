@@ -1,6 +1,8 @@
 import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Terminal as TerminalType, LayoutNode } from '../../types'
+import { Terminal as TerminalType, BrowserPane as BrowserPaneType, LayoutNode } from '../../types'
+
+const EMPTY_BROWSER_PANES: BrowserPaneType[] = []
 import { TerminalPane } from './TerminalPane'
 import { BrowserPane } from './BrowserPane'
 import { Group, Panel, Separator } from 'react-resizable-panels'
@@ -52,7 +54,7 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
   const reorderTerminals = useAppStore((s) => s.reorderTerminals)
   const updateLayoutSizes = useAppStore((s) => s.updateLayoutSizes)
   const layout = useAppStore((s) => s.layoutsByWorkspace[workspaceId])
-  const browserPanes = useAppStore((s) => s.browserPanesByWorkspace[workspaceId] ?? [])
+  const browserPanes = useAppStore((s) => s.browserPanesByWorkspace[workspaceId] ?? EMPTY_BROWSER_PANES)
 
   if (terminals.length === 0 || !layout) return null
 
