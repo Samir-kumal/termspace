@@ -54,6 +54,13 @@ export function addTerminalToLayout(
       return node
     }
 
+    if (node.type === 'browser') {
+      if (node.browserPaneId === targetId) {
+        return { type: 'split', id: generateId(), direction, sizes: [50, 50], children: [node, newPane] }
+      }
+      return node
+    }
+
     if (node.type === 'split') {
       return {
         ...node,
@@ -114,6 +121,7 @@ export function updateSplitSizes(root: LayoutNode | null, splitId: string, sizes
 
   function traverseAndUpdate(node: LayoutNode): LayoutNode {
     if (node.type === 'pane') return node
+    if (node.type === 'browser') return node
     if (node.type === 'split') {
       if (node.id === splitId) {
         return { ...node, sizes, children: node.children.map(traverseAndUpdate) }
@@ -124,4 +132,60 @@ export function updateSplitSizes(root: LayoutNode | null, splitId: string, sizes
   }
 
   return traverseAndUpdate(root)
+}
+
+export function addBrowserPaneToLayout(
+  root: LayoutNode | null,
+  browserPaneId: string,
+  targetId?: string,
+  direction: LayoutDirection = 'horizontal'
+): LayoutNode {
+  const newNode: LayoutNode = { type: 'browser', id: generateId(), browserPaneId }
+
+  if (!root) return newNode
+
+  if (!targetId) {
+    return { type: 'split', id: generateId(), direction, sizes: [50, 50], children: [root, newNode] }
+  }
+
+  function traverseAndAdd(node: LayoutNode): LayoutNode {
+    if (node.type === 'pane') {
+      if (node.terminalId === targetId) {
+        return { type: 'split', id: generateId(), direction, sizes: [50, 50], children: [node, newNode] }
+      }
+      return node
+    }
+    if (node.type === 'browser') {
+      if (node.browserPaneId === targetId) {
+        return { type: 'split', id: generateId(), direction, sizes: [50, 50], children: [node, newNode] }
+      }
+      return node
+    }
+    if (node.type === 'split') {
+      return { ...node, children: node.children.map(traverseAndAdd) }
+    }
+    return node
+  }
+
+  return traverseAndAdd(root)
+}
+
+export function removeBrowserPaneFromLayout(root: LayoutNode | null, browserPaneId: string): LayoutNode | null {
+  if (!root) return null
+
+  function traverseAndRemove(node: LayoutNode): LayoutNode | null {
+    if (node.type === 'browser') {
+      return node.browserPaneId === browserPaneId ? null : node
+    }
+    if (node.type === 'pane') return node
+    if (node.type === 'split') {
+      const newChildren = node.children.map(traverseAndRemove).filter(Boolean) as LayoutNode[]
+      if (newChildren.length === 0) return null
+      if (newChildren.length === 1) return newChildren[0]
+      return { ...node, children: newChildren }
+    }
+    return node
+  }
+
+  return traverseAndRemove(root)
 }

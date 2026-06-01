@@ -15,12 +15,21 @@ export interface Terminal {
   position: number
   sizePercent: number
   createdAt: number
-  scrollback?: string[]  // transient: populated on restore, not saved in DB
+  scrollback?: string[]
+}
+
+export interface BrowserPane {
+  id: string
+  workspaceId: string
+  url: string
+  position: number
+  createdAt: number
 }
 
 export type LayoutDirection = 'horizontal' | 'vertical'
 
 export type LayoutNode =
-  | { type: 'pane'; id: string; terminalId: string }
-  | { type: 'split'; id: string; direction: LayoutDirection; sizes: number[]; children: LayoutNode[] }
+  | { type: 'pane';    id: string; terminalId: string }
+  | { type: 'browser'; id: string; browserPaneId: string }
+  | { type: 'split';   id: string; direction: LayoutDirection; sizes: number[]; children: LayoutNode[] }
 
