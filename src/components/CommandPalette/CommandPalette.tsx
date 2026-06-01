@@ -83,10 +83,10 @@ export function CommandPalette({ onNewWorkspace, onOpenSettings, onNewTerminal }
         setVisible(false)
       } else if (e.key === 'ArrowDown') {
         e.preventDefault()
-        setSelectedIndex(i => (i + 1) % filteredActions.length)
+        if (filteredActions.length > 0) setSelectedIndex(i => (i + 1) % filteredActions.length)
       } else if (e.key === 'ArrowUp') {
         e.preventDefault()
-        setSelectedIndex(i => (i - 1 + filteredActions.length) % filteredActions.length)
+        if (filteredActions.length > 0) setSelectedIndex(i => (i - 1 + filteredActions.length) % filteredActions.length)
       } else if (e.key === 'Enter') {
         e.preventDefault()
         if (filteredActions[selectedIndex]) {

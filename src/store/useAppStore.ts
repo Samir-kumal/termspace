@@ -100,12 +100,33 @@ export const useAppStore = create<AppState>()(
       setTerminals: (workspaceId, terminals) =>
         set((s) => {
           let layout = s.layoutsByWorkspace[workspaceId] ?? null
-          if (!layout) {
+          
+          if (terminals.length === 0) {
+            layout = null // wipe stale layout from localStorage
+          } else if (!layout) {
             // Build a flat layout for legacy restored terminals
             terminals.forEach(t => {
               layout = addTerminalToLayout(layout, t.id)
             })
+          } else {
+            // Clean up any stale terminals from the layout that no longer exist in DB
+            const validIds = new Set(terminals.map(t => t.id))
+            const cleanLayout = (node: LayoutNode | null): LayoutNode | null => {
+              if (!node) return null
+              if (node.type === 'pane') {
+                return validIds.has(node.terminalId) ? node : null
+              }
+              if (node.type === 'split') {
+                const newChildren = node.children.map(cleanLayout).filter(Boolean) as LayoutNode[]
+                if (newChildren.length === 0) return null
+                if (newChildren.length === 1) return newChildren[0]
+                return { ...node, children: newChildren }
+              }
+              return node
+            }
+            layout = cleanLayout(layout)
           }
+
           return {
             terminalsByWorkspace: { ...s.terminalsByWorkspace, [workspaceId]: terminals },
             layoutsByWorkspace: { ...s.layoutsByWorkspace, [workspaceId]: layout },

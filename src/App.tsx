@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from './utils/tauri'
 import { useAppStore } from './store/useAppStore'
 import { WorkspaceSidebar } from './components/WorkspaceSidebar/WorkspaceSidebar'
 import { WorkspaceView } from './components/WorkspaceView/WorkspaceView'
@@ -66,28 +66,46 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', settings.theme)
   }, [settings.theme])
 
+  const withTimeout = <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
+    let timer: ReturnType<typeof setTimeout>;
+    return Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`Timeout after ${ms}ms: ${label}`)), ms);
+      })
+    ]).finally(() => clearTimeout(timer));
+  };
+
   async function spawnAndAddTerminal(workspaceId: string, targetId?: string, direction?: 'horizontal' | 'vertical') {
-    const terminal = await invoke<Terminal>('spawn_terminal', {
-      workspaceId, shell: 'zsh', cwd: '',
-    })
+    const terminal = await withTimeout(
+      invoke<Terminal>('spawn_terminal', { workspaceId, shell: 'zsh', cwd: '' }),
+      5000,
+      'spawn_terminal'
+    );
     addTerminal(workspaceId, terminal, targetId, direction)
     setActiveTerminalId(terminal.id)
   }
 
   async function activateWorkspace(workspaceId: string) {
-    const saved = await invoke<Terminal[]>('get_terminals', { workspaceId })
+    const saved = await withTimeout(
+      invoke<Terminal[]>('get_terminals', { workspaceId }),
+      5000,
+      'get_terminals'
+    );
     if (saved.length === 0) {
+      setTerminals(workspaceId, [])
       await spawnAndAddTerminal(workspaceId)
       return
     }
-    // Spawn terminals serially — SSH connections compete for MaxStartups if
-    // all fire simultaneously, exhausting the system process limit.
+    // Spawn terminals serially
     const spawned: Terminal[] = []
     for (const t of saved) {
-      const [scrollback] = await Promise.all([
-        invoke<string[]>('load_scrollback', { terminalId: t.id }),
-        invoke<void>('respawn_terminal', { id: t.id, shell: t.shell, cwd: t.cwd || '' }),
-      ])
+      // Execute serially to prevent Rust backend Tokio threads from running
+      // load_scrollback (which allocates memory) concurrently with respawn_terminal
+      // (which forks the process). Concurrent execution causes fork() deadlocks on macOS!
+      const scrollback = await withTimeout(invoke<string[]>('load_scrollback', { terminalId: t.id }), 5000, 'load_scrollback');
+      await withTimeout(invoke<void>('respawn_terminal', { id: t.id, shell: t.shell, cwd: t.cwd || '' }), 5000, 'respawn_terminal');
+      
       spawned.push({ ...t, scrollback })
     }
     setTerminals(workspaceId, spawned)
@@ -95,12 +113,20 @@ export default function App() {
   }
 
   useEffect(() => {
+    let isMounted = true;
+    let emergencyTimer = setTimeout(() => {
+      if (isMounted) {
+        setBootstrapError("EMERGENCY TIMEOUT: App stuck for 8 seconds");
+        setLoading(false);
+      }
+    }, 8000);
+
     async function bootstrap() {
-      const wsList = await invoke<Workspace[]>('get_workspaces')
+      const wsList = await withTimeout(invoke<Workspace[]>('get_workspaces'), 5000, 'get_workspaces')
       if (wsList.length === 0) {
-        const ws = await invoke<Workspace>('create_workspace', {
+        const ws = await withTimeout(invoke<Workspace>('create_workspace', {
           name: 'Main', emoji: '💻', color: '#e8a045',
-        })
+        }), 5000, 'create_workspace')
         setWorkspaces([ws])
         setActiveWorkspaceId(ws.id)
         await spawnAndAddTerminal(ws.id)
@@ -110,9 +136,17 @@ export default function App() {
         await activateWorkspace(wsList[0].id)
       }
     }
+    
     bootstrap()
-      .catch((err) => setBootstrapError(String(err)))
-      .finally(() => setLoading(false))
+      .catch((err) => {
+        if (isMounted) setBootstrapError(String(err));
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false);
+        clearTimeout(emergencyTimer);
+      })
+      
+    return () => { isMounted = false; clearTimeout(emergencyTimer); };
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSelectWorkspace(id: string) {

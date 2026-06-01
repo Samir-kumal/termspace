@@ -32,6 +32,7 @@ pub fn run() {
             commands::write_pty,
             commands::resize_pty,
             commands::load_scrollback,
+            commands::save_scrollback,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

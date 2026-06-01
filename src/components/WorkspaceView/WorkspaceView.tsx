@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from '../../utils/tauri'
 import { useAppStore } from '../../store/useAppStore'
 import { Workspace, Terminal } from '../../types'
 import { TerminalGrid } from './TerminalGrid'
@@ -36,7 +36,12 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
     }
   }
 
-  const handleCloseTerminal = (terminalId: string) => {
+  const handleCloseTerminal = async (terminalId: string) => {
+    try {
+      await invoke('close_terminal', { id: terminalId, scrollback: [] })
+    } catch (err) {
+      console.error('Failed to close terminal backend:', err)
+    }
     removeTerminal(workspace.id, terminalId)
     useAppStore.getState().addToast('Terminal closed', 'info')
     // If the active terminal is closed, switch focus to another one in this workspace

@@ -27,6 +27,7 @@ impl PtyManager {
         cols: u16,
         rows: u16,
     ) -> Result<(), String> {
+        println!(">>> RUST: pty_manager.spawn started for {}", terminal_id);
         let resolved_shell = if shell.is_empty() {
             std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string())
         } else {
@@ -38,11 +39,14 @@ impl PtyManager {
             cwd.to_string()
         };
 
+        println!(">>> RUST: pty_manager.spawn acquiring handles lock...");
         if self.handles.lock().unwrap().contains_key(&terminal_id) {
             return Err(format!("Terminal {terminal_id} already exists"));
         }
+        println!(">>> RUST: pty_manager.spawn handles lock checked.");
 
         let pty_system = native_pty_system();
+        println!(">>> RUST: pty_manager.spawn openpty...");
         let pair = pty_system
             .openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
             .map_err(|e| format!("openpty failed: {e}"))?;
@@ -52,19 +56,24 @@ impl PtyManager {
         cmd.cwd(&resolved_cwd);
         cmd.env("TERM", "xterm-256color");
 
+        println!(">>> RUST: pty_manager.spawn spawn_command...");
         let child = pair.slave
             .spawn_command(cmd)
             .map_err(|e| format!("spawn failed: {e}"))?;
+        println!(">>> RUST: pty_manager.spawn spawn_command finished.");
 
         // Close slave fd in the parent — the child process holds its own copy.
         drop(pair.slave);
+        println!(">>> RUST: pty_manager.spawn slave dropped.");
 
         let reader = pair.master
             .try_clone_reader()
             .map_err(|e| format!("clone reader: {e}"))?;
+        println!(">>> RUST: pty_manager.spawn reader cloned.");
         let writer = Arc::new(Mutex::new(
             pair.master.take_writer().map_err(|e| format!("take writer: {e}"))?
         ));
+        println!(">>> RUST: pty_manager.spawn writer taken.");
 
         self.handles.lock().unwrap().insert(
             terminal_id,
@@ -125,8 +134,13 @@ impl PtyManager {
     }
 
     pub fn kill(&self, terminal_id: &str) {
+        println!(">>> RUST: pty_manager.kill started for {}", terminal_id);
         if let Some(mut handle) = self.handles.lock().unwrap().remove(terminal_id) {
+            println!(">>> RUST: pty_manager.kill calling child.kill()...");
             let _ = handle.child.kill();
+            println!(">>> RUST: pty_manager.kill child.kill() finished.");
+        } else {
+            println!(">>> RUST: pty_manager.kill handle not found.");
         }
     }
 }

@@ -1,5 +1,5 @@
 import { useEffect, useCallback } from 'react'
-import { invoke } from '@tauri-apps/api/core'
+import { invoke } from '../utils/tauri'
 import { useAppStore } from '../store/useAppStore'
 import { matchShortcut } from '../utils/shortcuts'
 import { Terminal as TerminalType } from '../types'
@@ -92,7 +92,7 @@ export function useGlobalKeybindings() {
     const listener = (e: KeyboardEvent) => {
       handler(e)
     }
-    window.addEventListener('keydown', listener)
-    return () => window.removeEventListener('keydown', listener)
+    window.addEventListener('keydown', listener, { capture: true })
+    return () => window.removeEventListener('keydown', listener, { capture: true })
   }, [handler])
 }

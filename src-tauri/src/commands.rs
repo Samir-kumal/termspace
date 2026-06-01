@@ -8,6 +8,7 @@ pub struct DbState(pub Mutex<Connection>);
 
 #[tauri::command]
 pub fn get_workspaces(db: State<DbState>) -> Result<Vec<Workspace>, String> {
+    println!(">>> RUST: get_workspaces called");
     db::get_workspaces(&db.0.lock().unwrap()).map_err(|e| e.to_string())
 }
 
@@ -18,6 +19,7 @@ pub fn create_workspace(
     emoji: String,
     color: String,
 ) -> Result<Workspace, String> {
+    println!(">>> RUST: create_workspace called for {}", name);
     db::create_workspace(&db.0.lock().unwrap(), &name, &emoji, &color)
         .map_err(|e| e.to_string())
 }
@@ -35,12 +37,27 @@ pub fn update_workspace(
 }
 
 #[tauri::command]
-pub fn delete_workspace(db: State<DbState>, id: String) -> Result<(), String> {
-    db::delete_workspace(&db.0.lock().unwrap(), &id).map_err(|e| e.to_string())
+pub fn delete_workspace(
+    db: State<DbState>,
+    pty: State<PtyManager>,
+    id: String,
+) -> Result<(), String> {
+    {
+        let conn = db.0.lock().unwrap();
+        // Fetch terminals to kill their processes
+        if let Ok(terminals) = db::get_terminals(&conn, &id) {
+            for t in terminals {
+                pty.kill(&t.id);
+            }
+        }
+        db::delete_workspace(&conn, &id).map_err(|e| e.to_string())?;
+    }
+    Ok(())
 }
 
 #[tauri::command]
 pub fn get_terminals(db: State<DbState>, workspace_id: String) -> Result<Vec<Terminal>, String> {
+    println!(">>> RUST: get_terminals called for ws {}", workspace_id);
     db::get_terminals(&db.0.lock().unwrap(), &workspace_id).map_err(|e| e.to_string())
 }
 
@@ -52,6 +69,7 @@ pub fn spawn_terminal(
     shell: String,
     cwd: String,
 ) -> Result<Terminal, String> {
+    println!(">>> RUST: spawn_terminal called for ws {} (shell: {}, cwd: {})", workspace_id, shell, cwd);
     // resolve empty cwd to user home directory
     let resolved_cwd = if cwd.is_empty() {
         std::env::var("HOME").unwrap_or_else(|_| "/".to_string())
@@ -91,6 +109,7 @@ pub fn respawn_terminal(
     shell: String,
     cwd: String,
 ) -> Result<(), String> {
+    println!(">>> RUST: respawn_terminal called for term {}", id);
     // If the backend is still running (e.g., from a Vite HMR or frontend reload),
     // kill the old PTY process so we can cleanly respawn and attach new listeners.
     pty.kill(&id);
@@ -140,6 +159,16 @@ pub fn close_terminal(
     } // lock released here before pty.kill
     pty.kill(&id);
     Ok(())
+}
+
+#[tauri::command]
+pub fn save_scrollback(
+    db: State<DbState>,
+    id: String,
+    scrollback: Vec<String>,
+) -> Result<(), String> {
+    let conn = db.0.lock().unwrap();
+    db::save_scrollback(&conn, &id, &scrollback).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

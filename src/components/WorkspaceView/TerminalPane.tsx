@@ -3,8 +3,7 @@ import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SerializeAddon } from '@xterm/addon-serialize'
 import { SearchAddon } from '@xterm/addon-search'
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { invoke, listen } from '../../utils/tauri'
 import { useAppStore } from '../../store/useAppStore'
 import '@xterm/xterm/css/xterm.css'
 
@@ -146,7 +145,9 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
       unlistenRef.current?.then((fn) => fn()).catch(() => {})
       ro.disconnect()
       const lines = serializeAddon.serialize().split('\n')
-      invoke('close_terminal', { id: terminalId, scrollback: lines }).catch(console.error)
+      // Only save scrollback on unmount, do NOT kill the backend process
+      // because unmount happens naturally when layout is reparented or workspace switched.
+      invoke('save_scrollback', { id: terminalId, scrollback: lines }).catch(console.error)
       xterm.dispose()
       // Note: removeTerminal is intentionally NOT called here.
       // The parent (App.tsx activateWorkspace) owns terminal lifecycle in the store.

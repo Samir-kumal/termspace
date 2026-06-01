@@ -67,7 +67,7 @@ export function WorkspaceSidebar({ isCollapsed, onToggleCollapse, onAddWorkspace
         </button>
       </div>
 
-      <AnimatePresence>
+      <AnimatePresence initial={false}>
         {workspaces.map((ws) => (
           <motion.div
             key={ws.id}
