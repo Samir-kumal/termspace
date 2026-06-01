@@ -8,6 +8,7 @@ import { SettingsModal } from './components/SettingsModal/SettingsModal'
 import { ConfirmModal } from './components/ConfirmModal/ConfirmModal'
 import { ContextMenu } from './components/ui/ContextMenu'
 import { ToastContainer } from './components/ui/ToastContainer'
+import { CommandPalette } from './components/CommandPalette/CommandPalette'
 import { useGlobalKeybindings } from './hooks/useGlobalKeybindings'
 import { Workspace, Terminal } from './types'
 import { Group, Panel, Separator, usePanelRef } from 'react-resizable-panels'
@@ -188,6 +189,25 @@ export default function App() {
         />
       )}
       <ToastContainer />
+      <CommandPalette
+        onNewWorkspace={() => setShowCreateModal(true)}
+        onOpenSettings={() => setShowSettingsModal(true)}
+        onNewTerminal={async () => {
+          if (activeWorkspaceId) {
+            try {
+              const terminal = await invoke<Terminal>('spawn_terminal', {
+                workspaceId: activeWorkspaceId,
+                shell: 'zsh',
+                cwd: '',
+              })
+              addTerminal(activeWorkspaceId, terminal)
+              setActiveTerminalId(terminal.id)
+            } catch (err) {
+              console.error(err)
+            }
+          }
+        }}
+      />
       <Group orientation="horizontal" id="app-layout-v5" autoSave="app-layout-v5">
         <Panel
           id="sidebar-panel"

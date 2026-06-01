@@ -8,6 +8,7 @@ export interface Keybindings {
   closeTerminal: string
   nextTerminal: string
   prevTerminal: string
+  commandPalette: string
 }
 
 export interface Settings {
@@ -47,6 +48,9 @@ interface AppState {
   toasts: { id: string; message: string; type: 'success' | 'error' | 'info' }[]
   addToast: (message: string, type?: 'success' | 'error' | 'info') => void
   removeToast: (id: string) => void
+
+  showCommandPalette: boolean
+  setShowCommandPalette: (show: boolean) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -59,6 +63,7 @@ export const useAppStore = create<AppState>()(
       layoutsByWorkspace: {},
       contextMenu: null,
       toasts: [],
+      showCommandPalette: false,
       settings: {
         theme: 'warm-dark',
         fontSize: 13,
@@ -67,6 +72,7 @@ export const useAppStore = create<AppState>()(
           closeTerminal: 'CmdOrCtrl+W',
           nextTerminal: 'CmdOrCtrl+Shift+]',
           prevTerminal: 'CmdOrCtrl+Shift+[',
+          commandPalette: 'CmdOrCtrl+K',
         }
       },
 
@@ -182,6 +188,7 @@ export const useAppStore = create<AppState>()(
         }, 3000)
       },
       removeToast: (id) => set((s) => ({ toasts: s.toasts.filter(t => t.id !== id) })),
+      setShowCommandPalette: (show) => set({ showCommandPalette: show }),
     }),
     {
       name: 'termspace-storage',

@@ -17,6 +17,7 @@ export function SettingsModal({ onClose }: Props) {
     closeTerminal: 'CmdOrCtrl+W',
     nextTerminal: 'CmdOrCtrl+Shift+]',
     prevTerminal: 'CmdOrCtrl+Shift+[',
+    commandPalette: 'CmdOrCtrl+K',
   })
 
   function handleSave() {

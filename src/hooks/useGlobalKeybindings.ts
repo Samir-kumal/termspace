@@ -20,6 +20,12 @@ export function useKeybindingHandler() {
     
     const { keybindings } = settings
 
+    if (matchShortcut(e, keybindings.commandPalette)) {
+      e.preventDefault()
+      useAppStore.getState().setShowCommandPalette(true)
+      return true
+    }
+
     if (matchShortcut(e, keybindings.newTerminal)) {
       e.preventDefault()
       if (terminals.length < 4) {
