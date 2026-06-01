@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { invoke } from './utils/tauri'
 import { useAppStore } from './store/useAppStore'
 import { WorkspaceSidebar } from './components/WorkspaceSidebar/WorkspaceSidebar'
@@ -10,7 +10,7 @@ import { ContextMenu } from './components/ui/ContextMenu'
 import { ToastContainer } from './components/ui/ToastContainer'
 import { CommandPalette } from './components/CommandPalette/CommandPalette'
 import { useGlobalKeybindings } from './hooks/useGlobalKeybindings'
-import { Workspace, Terminal } from './types'
+import { BrowserPane, Workspace, Terminal } from './types'
 import { Group, Panel, Separator, usePanelRef } from 'react-resizable-panels'
 import { AnimatePresence } from 'framer-motion'
 
@@ -46,6 +46,7 @@ export default function App() {
   const setActiveWorkspaceId = useAppStore((s) => s.setActiveWorkspaceId)
   const setTerminals = useAppStore((s) => s.setTerminals)
   const addTerminal = useAppStore((s) => s.addTerminal)
+  const setBrowserPanes = useAppStore((s) => s.setBrowserPanes)
   const removeWorkspace = useAppStore((s) => s.removeWorkspace)
   const setActiveTerminalId = useAppStore((s) => s.setActiveTerminalId)
 
@@ -59,6 +60,8 @@ export default function App() {
 
   const sidebarRef = usePanelRef()
   const settings = useAppStore((s) => s.settings)
+
+  const prevActiveWorkspaceIdRef = useRef<string | null>(null)
 
   useGlobalKeybindings()
 
@@ -95,6 +98,27 @@ export default function App() {
     if (saved.length === 0) {
       setTerminals(workspaceId, [])
       await spawnAndAddTerminal(workspaceId)
+
+      // Load and restore browser panes for this workspace
+      const savedBrowserPanes = await withTimeout(
+        invoke<BrowserPane[]>('get_browser_panes', { workspaceId }),
+        5000, 'get_browser_panes'
+      ).catch(() => [] as BrowserPane[])  // non-fatal — continue without browser panes
+
+      const restoredBrowserPanes: BrowserPane[] = []
+      for (const bp of savedBrowserPanes) {
+        try {
+          await withTimeout(
+            invoke('respawn_browser_pane', { id: bp.id, url: bp.url, x: -10000, y: -10000, w: 800, h: 600 }),
+            5000, 'respawn_browser_pane'
+          )
+          restoredBrowserPanes.push(bp)
+        } catch (err) {
+          console.warn('Failed to restore browser pane, skipping:', bp.id, err)
+        }
+      }
+      setBrowserPanes(workspaceId, restoredBrowserPanes)
+
       return
     }
     // Spawn terminals serially
@@ -105,11 +129,31 @@ export default function App() {
       // (which forks the process). Concurrent execution causes fork() deadlocks on macOS!
       const scrollback = await withTimeout(invoke<string[]>('load_scrollback', { terminalId: t.id }), 5000, 'load_scrollback');
       await withTimeout(invoke<void>('respawn_terminal', { id: t.id, shell: t.shell, cwd: t.cwd || '' }), 5000, 'respawn_terminal');
-      
+
       spawned.push({ ...t, scrollback })
     }
     setTerminals(workspaceId, spawned)
     setActiveTerminalId(spawned[0]?.id ?? null)
+
+    // Load and restore browser panes for this workspace
+    const savedBrowserPanes = await withTimeout(
+      invoke<BrowserPane[]>('get_browser_panes', { workspaceId }),
+      5000, 'get_browser_panes'
+    ).catch(() => [] as BrowserPane[])  // non-fatal — continue without browser panes
+
+    const restoredBrowserPanes: BrowserPane[] = []
+    for (const bp of savedBrowserPanes) {
+      try {
+        await withTimeout(
+          invoke('respawn_browser_pane', { id: bp.id, url: bp.url, x: -10000, y: -10000, w: 800, h: 600 }),
+          5000, 'respawn_browser_pane'
+        )
+        restoredBrowserPanes.push(bp)
+      } catch (err) {
+        console.warn('Failed to restore browser pane, skipping:', bp.id, err)
+      }
+    }
+    setBrowserPanes(workspaceId, restoredBrowserPanes)
   }
 
   useEffect(() => {
@@ -150,9 +194,19 @@ export default function App() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleSelectWorkspace(id: string) {
+    // Hide browser panes of old workspace before switching
+    const prevId = prevActiveWorkspaceIdRef.current
+    if (prevId) {
+      const prevPanes = useAppStore.getState().browserPanesByWorkspace[prevId] ?? []
+      for (const pane of prevPanes) {
+        invoke('hide_browser_pane', { id: pane.id }).catch(() => {})
+      }
+    }
+    prevActiveWorkspaceIdRef.current = id
+
     setActiveWorkspaceId(id)
     setActiveTerminalId(null)
-    
+
     // Only activate if we haven't loaded/spawned terminals for this workspace yet
     const currentTerminals = useAppStore.getState().terminalsByWorkspace[id]
     if (!currentTerminals) {
