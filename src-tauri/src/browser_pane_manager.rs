@@ -31,6 +31,10 @@ struct PaneEntry {
     y: f64,
     w: f64,
     h: f64,
+    /// When true the pane is parked offscreen. `set_bounds` updates the cached
+    /// rectangle but must NOT push it to the live webview, otherwise a layout
+    /// reflow would visibly re-show a pane the user deliberately hid.
+    is_hidden: bool,
 }
 
 /// Owns every native browser-pane webview for the application.
@@ -72,6 +76,14 @@ impl BrowserPaneManager {
         w: f64,
         h: f64,
     ) -> Result<(), tauri::Error> {
+        // Reject non-positive dimensions. This is a transient startup race
+        // (React mounts the placeholder before its rect has been measured), so
+        // we skip creation and let the follow-up `set_bounds` drive sizing
+        // rather than building a degenerate webview.
+        if w <= 0.0 || h <= 0.0 {
+            return Ok(());
+        }
+
         // Reject duplicate ids before touching the runtime so we never leak a
         // half-built webview that the map does not track.
         {
@@ -113,32 +125,45 @@ impl BrowserPaneManager {
         self.panes
             .lock()
             .unwrap()
-            .insert(id.to_string(), PaneEntry { webview, x, y, w, h });
+            .insert(id.to_string(), PaneEntry { webview, x, y, w, h, is_hidden: false });
         Ok(())
     }
 
-    /// Navigates an existing pane to `url`. No-op if the id is unknown or the
-    /// URL is unparseable (logged-and-ignored at the call site via the discard).
-    pub fn navigate(&self, id: &str, url: &str) {
+    /// Navigates an existing pane to `url`. Surfaces a missing pane id or an
+    /// unparseable URL as an error rather than silently dropping the request,
+    /// so the frontend can distinguish "did nothing" from "could not".
+    pub fn navigate(&self, id: &str, url: &str) -> Result<(), String> {
         let panes = self.panes.lock().unwrap();
-        if let Some(entry) = panes.get(id) {
-            if let Ok(parsed) = url.parse() {
-                let _ = entry.webview.navigate(parsed);
-            }
-        }
+        let entry = panes
+            .get(id)
+            .ok_or_else(|| format!("pane '{}' not found", id))?;
+        let parsed: tauri::Url = url
+            .parse()
+            .map_err(|e| format!("invalid URL '{}': {}", url, e))?;
+        entry.webview.navigate(parsed).map_err(|e| e.to_string())
     }
 
     /// Repositions and resizes a pane, updating the cached bounds so a later
     /// `show()` restores this rectangle rather than a stale one.
     pub fn set_bounds(&self, id: &str, x: f64, y: f64, w: f64, h: f64) {
+        // Drop non-positive rectangles (transient measurement races); pushing a
+        // zero/negative size to the runtime is undefined and could clobber a
+        // valid cached rect.
+        if w <= 0.0 || h <= 0.0 {
+            return;
+        }
         let mut panes = self.panes.lock().unwrap();
         if let Some(entry) = panes.get_mut(id) {
             entry.x = x;
             entry.y = y;
             entry.w = w;
             entry.h = h;
-            let _ = entry.webview.set_position(LogicalPosition::new(x, y));
-            let _ = entry.webview.set_size(LogicalSize::new(w, h));
+            // While hidden, only update the cached rect. `show()` will apply it
+            // to the live webview; applying it here would visibly un-hide.
+            if !entry.is_hidden {
+                let _ = entry.webview.set_position(LogicalPosition::new(x, y));
+                let _ = entry.webview.set_size(LogicalSize::new(w, h));
+            }
         }
     }
 
@@ -167,8 +192,9 @@ impl BrowserPaneManager {
     /// stays alive (session/scroll/navigation state preserved) so `show()` is
     /// instant and does not refetch.
     pub fn hide(&self, id: &str) {
-        let panes = self.panes.lock().unwrap();
-        if let Some(entry) = panes.get(id) {
+        let mut panes = self.panes.lock().unwrap();
+        if let Some(entry) = panes.get_mut(id) {
+            entry.is_hidden = true;
             let _ = entry.webview.set_position(LogicalPosition::new(HIDDEN_X, HIDDEN_Y));
             let _ = entry.webview.set_size(LogicalSize::new(1.0_f64, 1.0_f64));
         }
@@ -176,8 +202,9 @@ impl BrowserPaneManager {
 
     /// Restores a previously hidden pane to its last-known bounds.
     pub fn show(&self, id: &str) {
-        let panes = self.panes.lock().unwrap();
-        if let Some(entry) = panes.get(id) {
+        let mut panes = self.panes.lock().unwrap();
+        if let Some(entry) = panes.get_mut(id) {
+            entry.is_hidden = false;
             let _ = entry.webview.set_position(LogicalPosition::new(entry.x, entry.y));
             let _ = entry.webview.set_size(LogicalSize::new(entry.w, entry.h));
         }
