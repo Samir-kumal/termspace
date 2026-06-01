@@ -43,6 +43,7 @@ const CustomResizeHandle = ({ id, direction }: { id: string, direction: 'horizon
 
 export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus, onClose }: Props) {
   const [maximizedTerminalId, setMaximizedTerminalId] = useState<string | null>(null)
+  const [dragOverTerminalId, setDragOverTerminalId] = useState<string | null>(null)
   const reorderTerminals = useAppStore((s) => s.reorderTerminals)
 
   if (terminals.length === 0) return null
@@ -60,9 +61,14 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
         onDragOver={(e) => {
           e.preventDefault()
           e.dataTransfer.dropEffect = 'move'
+          if (dragOverTerminalId !== t.id) setDragOverTerminalId(t.id)
+        }}
+        onDragLeave={() => {
+          if (dragOverTerminalId === t.id) setDragOverTerminalId(null)
         }}
         onDrop={(e) => {
           e.preventDefault()
+          setDragOverTerminalId(null)
           const sourceId = e.dataTransfer.getData('application/terminal-id')
           if (sourceId && sourceId !== t.id) {
             reorderTerminals(workspaceId, sourceId, t.id)
@@ -80,6 +86,7 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
           terminalId={t.id}
           workspaceId={workspaceId}
           isActive={t.id === activeTerminalId}
+          isDragOver={dragOverTerminalId === t.id}
           scrollback={t.scrollback}
           isMaximized={maximizedTerminalId === t.id}
           onFocus={() => onFocus(t.id)}

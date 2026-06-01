@@ -16,6 +16,7 @@ interface Props {
   onFocus: () => void
   onToggleMaximize: () => void
   onClose: () => void
+  isDragOver?: boolean
 }
 
 const XTERM_THEMES = {
@@ -42,7 +43,7 @@ const XTERM_THEMES = {
   }
 }
 
-export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, scrollback, onFocus, onToggleMaximize, onClose }: Props) {
+export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, scrollback, onFocus, onToggleMaximize, onClose, isDragOver }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<XTerm | null>(null)
   const unlistenRef = useRef<Promise<() => void> | null>(null)
@@ -130,11 +131,16 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
         width: '100%', height: '100%',
         display: 'flex', flexDirection: 'column',
         overflow: 'hidden', borderRadius: 8,
-        border: isActive ? '1px solid var(--accent)' : '1px solid var(--border-inactive)',
-        boxShadow: isActive ? '0 0 0 1px var(--accent), 0 4px 12px rgba(0,0,0,0.1)' : '0 2px 8px rgba(0,0,0,0.05)',
+        border: isDragOver 
+          ? '2px dashed var(--accent)' 
+          : (isActive ? '1px solid var(--accent)' : '1px solid var(--border-inactive)'),
+        boxShadow: isDragOver
+          ? 'inset 0 0 0 1px var(--accent), 0 8px 24px rgba(0,0,0,0.15)'
+          : (isActive ? '0 0 0 1px var(--accent), 0 4px 12px rgba(0,0,0,0.1)' : '0 2px 8px rgba(0,0,0,0.05)'),
         background: 'var(--bg-terminal)', cursor: 'text',
         position: 'relative',
-        transition: 'border 0.2s, box-shadow 0.2s'
+        transition: 'border 0.2s, box-shadow 0.2s',
+        opacity: isDragOver ? 0.7 : 1,
       }}
     >
       <div style={{ flex: 1, minHeight: 0, padding: '10px 0 10px 12px' }}>
