@@ -2,6 +2,7 @@ import React, { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Terminal as TerminalType, LayoutNode } from '../../types'
 import { TerminalPane } from './TerminalPane'
+import { BrowserPane } from './BrowserPane'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { useAppStore } from '../../store/useAppStore'
 
@@ -12,6 +13,8 @@ interface Props {
   onFocus: (terminalId: string) => void
   onClose: (terminalId: string) => void
   onSplit: (terminalId: string, direction: 'horizontal' | 'vertical') => void
+  onCloseBrowserPane: (browserPaneId: string) => void
+  onSplitBrowserPane: (browserPaneId: string, direction: 'horizontal' | 'vertical') => void
 }
 
 const CustomResizeHandle = ({ id, direction }: { id: string, direction: 'horizontal' | 'vertical' }) => {
@@ -43,7 +46,7 @@ const CustomResizeHandle = ({ id, direction }: { id: string, direction: 'horizon
   )
 }
 
-export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus, onClose, onSplit }: Props) {
+export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus, onClose, onSplit, onCloseBrowserPane, onSplitBrowserPane }: Props) {
   const [maximizedTerminalId, setMaximizedTerminalId] = useState<string | null>(null)
   const [dragOverTerminalId, setDragOverTerminalId] = useState<string | null>(null)
   const reorderTerminals = useAppStore((s) => s.reorderTerminals)
@@ -106,9 +109,40 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
     )
   }
 
+  const browserPanes = useAppStore((s) => s.browserPanesByWorkspace[workspaceId] ?? [])
+
+  const renderBrowserPane = (browserPaneId: string) => {
+    const pane = browserPanes.find(p => p.id === browserPaneId)
+    if (!pane) return null
+    return (
+      <div
+        key={pane.id}
+        style={{ display: 'flex', width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}
+      >
+        <BrowserPane
+          browserPaneId={pane.id}
+          initialUrl={pane.url}
+          isActive={pane.id === activeTerminalId}
+          isMaximized={maximizedTerminalId === pane.id}
+          onFocus={() => onFocus(pane.id)}
+          onClose={() => {
+            if (maximizedTerminalId === pane.id) setMaximizedTerminalId(null)
+            onCloseBrowserPane(pane.id)
+          }}
+          onSplit={(direction) => onSplitBrowserPane(pane.id, direction)}
+          onToggleMaximize={() => setMaximizedTerminalId(maximizedTerminalId === pane.id ? null : pane.id)}
+        />
+      </div>
+    )
+  }
+
   const renderLayoutNode = (node: LayoutNode): React.ReactNode => {
     if (node.type === 'pane') {
       return renderTerminal(node.terminalId)
+    }
+
+    if (node.type === 'browser') {
+      return renderBrowserPane(node.browserPaneId)
     }
 
     if (node.type === 'split') {
