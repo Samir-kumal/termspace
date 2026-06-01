@@ -3,52 +3,88 @@ import { AddWorkspaceButton } from './AddWorkspaceButton'
 import { WorkspaceItem } from './WorkspaceItem'
 
 interface Props {
+  isCollapsed: boolean
+  onToggleCollapse: () => void
   onAddWorkspace: () => void
   onSelectWorkspace: (id: string) => void
   onDeleteWorkspace: (id: string) => void
   onOpenSettings: () => void
 }
 
-export function WorkspaceSidebar({ onAddWorkspace, onSelectWorkspace, onDeleteWorkspace, onOpenSettings }: Props) {
+export function WorkspaceSidebar({ isCollapsed, onToggleCollapse, onAddWorkspace, onSelectWorkspace, onDeleteWorkspace, onOpenSettings }: Props) {
   const workspaces = useAppStore((s) => s.workspaces)
   const activeWorkspaceId = useAppStore((s) => s.activeWorkspaceId)
 
   return (
     <div
       style={{
-        width: 'var(--sidebar-width)', minWidth: 'var(--sidebar-width)',
+        width: '100%',
         height: '100%', background: 'var(--bg-sidebar)',
-        borderRight: '1px solid var(--border-inactive)',
         display: 'flex', flexDirection: 'column', padding: 8, gap: 2,
       }}
     >
       <div
         style={{
-          fontSize: 10, letterSpacing: 1, color: 'var(--text-inactive)',
-          padding: '4px 10px 8px', textTransform: 'uppercase',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: isCollapsed ? 'center' : 'space-between',
+          padding: isCollapsed ? '4px 0 8px' : '4px 2px 8px',
         }}
       >
-        Workspaces
+        {!isCollapsed && (
+          <span style={{ 
+            fontSize: 10, letterSpacing: 1, color: 'var(--text-inactive)', textTransform: 'uppercase',
+            whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 
+          }}>
+            Workspaces
+          </span>
+        )}
+        <button
+          onClick={onToggleCollapse}
+          title={isCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          style={{
+            background: 'none', border: 'none', color: 'var(--text-inactive)',
+            cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            padding: 4, borderRadius: 4, flexShrink: 0,
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--bg-item)'
+            e.currentTarget.style.color = 'var(--text-active)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent'
+            e.currentTarget.style.color = 'var(--text-inactive)'
+          }}
+        >
+          {isCollapsed ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 17l5-5-5-5M6 17l5-5-5-5"/></svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 17l-5-5 5-5M18 17l-5-5 5-5"/></svg>
+          )}
+        </button>
       </div>
+
       {workspaces.map((ws) => (
         <WorkspaceItem
           key={ws.id}
           workspace={ws}
           isActive={ws.id === activeWorkspaceId}
           canDelete={workspaces.length > 1}
+          isCollapsed={isCollapsed}
           onClick={() => onSelectWorkspace(ws.id)}
           onDelete={() => onDeleteWorkspace(ws.id)}
         />
       ))}
-      <AddWorkspaceButton onClick={onAddWorkspace} />
+      <AddWorkspaceButton onClick={onAddWorkspace} isCollapsed={isCollapsed} />
 
       <div style={{ flex: 1 }} />
       
       <button
         onClick={onOpenSettings}
+        title={isCollapsed ? 'Settings' : undefined}
         style={{
-          display: 'flex', alignItems: 'center', gap: 8,
-          padding: '8px 10px', width: '100%', background: 'transparent',
+          display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: 8,
+          padding: isCollapsed ? '8px 0' : '8px 10px', width: '100%', background: 'transparent',
           border: 'none', borderRadius: 6, color: 'var(--text-inactive)',
           cursor: 'pointer', fontSize: 13, textAlign: 'left',
           marginTop: 'auto'
@@ -62,7 +98,8 @@ export function WorkspaceSidebar({ onAddWorkspace, onSelectWorkspace, onDeleteWo
           e.currentTarget.style.color = 'var(--text-inactive)'
         }}
       >
-        <span style={{ fontSize: 16 }}>⚙</span> Settings
+        <span style={{ fontSize: 16, flexShrink: 0 }}>⚙</span> 
+        {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Settings</span>}
       </button>
     </div>
   )

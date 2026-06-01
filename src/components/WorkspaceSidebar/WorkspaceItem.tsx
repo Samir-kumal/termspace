@@ -5,21 +5,23 @@ interface Props {
   workspace: Workspace
   isActive: boolean
   canDelete: boolean
+  isCollapsed?: boolean
   onClick: () => void
   onDelete: () => void
 }
 
-export function WorkspaceItem({ workspace, isActive, canDelete, onClick, onDelete }: Props) {
+export function WorkspaceItem({ workspace, isActive, canDelete, isCollapsed, onClick, onDelete }: Props) {
   const [hovered, setHovered] = useState(false)
 
   return (
     <div
       onClick={onClick}
+      title={isCollapsed ? workspace.name : undefined}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       style={{
-        display: 'flex', alignItems: 'center', gap: 8,
-        padding: '7px 10px', borderRadius: 4,
+        display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: 8,
+        padding: isCollapsed ? '7px 0' : '7px 10px', borderRadius: 4,
         borderLeft: isActive ? '3px solid var(--accent)' : '3px solid transparent',
         background: isActive ? 'var(--bg-item-active)' : 'transparent',
         color: isActive ? 'var(--text-active)' : 'var(--text-inactive)',
@@ -27,11 +29,13 @@ export function WorkspaceItem({ workspace, isActive, canDelete, onClick, onDelet
         position: 'relative',
       }}
     >
-      <span style={{ fontSize: 16 }}>{workspace.emoji}</span>
-      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-        {workspace.name}
-      </span>
-      {hovered && canDelete && (
+      <span style={{ fontSize: 16, flexShrink: 0 }}>{workspace.emoji}</span>
+      {!isCollapsed && (
+        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
+          {workspace.name}
+        </span>
+      )}
+      {!isCollapsed && hovered && canDelete && (
         <button
           onClick={(e) => { e.stopPropagation(); onDelete() }}
           title="Delete workspace"

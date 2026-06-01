@@ -62,10 +62,30 @@ html, body, #root {
 ::-webkit-scrollbar-thumb { background: var(--border-inactive); border-radius: 2px; }
 
 [data-panel-resize-handle] {
-  background: var(--border-inactive);
+  background: transparent;
   transition: background 0.15s;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 [data-panel-resize-handle]:hover,
 [data-panel-resize-handle][data-resize-handle-active] {
-  background: var(--accent);
+  background: var(--border-inactive);
+}
+
+[data-panel-resize-handle] .resize-icon {
+  opacity: 0;
+  transition: opacity 0.15s;
+  color: var(--text-dim);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+[data-panel-resize-handle]:hover .resize-icon,
+[data-panel-resize-handle][data-resize-handle-active] .resize-icon {
+  opacity: 1;
+  color: var(--text-active);
 }

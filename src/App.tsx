@@ -5,7 +5,32 @@ import { WorkspaceSidebar } from './components/WorkspaceSidebar/WorkspaceSidebar
 import { WorkspaceView } from './components/WorkspaceView/WorkspaceView'
 import { WorkspaceModal } from './components/WorkspaceModal/WorkspaceModal'
 import { SettingsModal } from './components/SettingsModal/SettingsModal'
+import { ConfirmModal } from './components/ConfirmModal/ConfirmModal'
 import { Workspace, Terminal } from './types'
+import { Group, Panel, Separator, usePanelRef } from 'react-resizable-panels'
+
+const SidebarResizeHandle = () => (
+  <Separator
+    style={{
+      width: '6px',
+      margin: '0 -1px',
+      position: 'relative',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      cursor: 'col-resize',
+      zIndex: 10,
+    }}
+  >
+    <div className="resize-icon" style={{ height: '100%', display: 'flex', alignItems: 'center' }}>
+      <svg width="8" height="24" viewBox="0 0 8 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="4" cy="6" r="1" />
+        <circle cx="4" cy="12" r="1" />
+        <circle cx="4" cy="18" r="1" />
+      </svg>
+    </div>
+  </Separator>
+)
 
 export default function App() {
   const workspaces = useAppStore((s) => s.workspaces)
@@ -22,8 +47,12 @@ export default function App() {
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
   const [editingWorkspace, setEditingWorkspace] = useState<Workspace | null>(null)
+  const [workspaceToDelete, setWorkspaceToDelete] = useState<Workspace | null>(null)
   const [loading, setLoading] = useState(true)
   const [bootstrapError, setBootstrapError] = useState<string | null>(null)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+
+  const sidebarRef = usePanelRef()
   const settings = useAppStore((s) => s.settings)
 
   useEffect(() => {
@@ -98,11 +127,26 @@ export default function App() {
     setShowCreateModal(false)
   }
 
-  async function handleDeleteWorkspace(id: string) {
+  function confirmDeleteWorkspace(id: string) {
+    const ws = workspaces.find((w) => w.id === id)
+    if (ws) {
+      setWorkspaceToDelete(ws)
+    }
+  }
+
+  async function executeDeleteWorkspace() {
+    if (!workspaceToDelete) return
+    const id = workspaceToDelete.id
     // Don't delete the last workspace
-    if (workspaces.length <= 1) return
+    if (workspaces.length <= 1) {
+      setWorkspaceToDelete(null)
+      return
+    }
+    
     await invoke('delete_workspace', { id })
     removeWorkspace(id)
+    setWorkspaceToDelete(null)
+    
     // activateWorkspace is triggered via the store's removeWorkspace selector
     // which picks the next available workspace; activate it here
     const next = useAppStore.getState().activeWorkspaceId
@@ -123,55 +167,84 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
-      <WorkspaceSidebar
-        onAddWorkspace={() => setShowCreateModal(true)}
-        onSelectWorkspace={handleSelectWorkspace}
-        onDeleteWorkspace={handleDeleteWorkspace}
-        onOpenSettings={() => setShowSettingsModal(true)}
-      />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-        {/* Always show bootstrap/spawn errors prominently at the top */}
-        {bootstrapError && (
-          <div style={{
-            padding: '8px 14px', background: 'rgba(224,123,123,0.15)',
-            borderBottom: '1px solid rgba(224,123,123,0.4)',
-            color: '#e07b7b', fontSize: 12, flexShrink: 0,
-          }}>
-            ⚠ {bootstrapError}
-          </div>
-        )}
+      <Group orientation="horizontal" id="app-layout-v5" autoSave="app-layout-v5">
+        <Panel
+          id="sidebar-panel"
+          panelRef={sidebarRef}
+          defaultSize={200}
+          minSize={160}
+          maxSize={400}
+          collapsible={true}
+          collapsedSize={48}
+          onResize={() => {
+            if (sidebarRef.current) {
+              setIsSidebarCollapsed(sidebarRef.current.isCollapsed())
+            }
+          }}
+          className={isSidebarCollapsed ? "sidebar-panel-collapsed" : "sidebar-panel-expanded"}
+        >
+          <WorkspaceSidebar
+            isCollapsed={isSidebarCollapsed}
+            onToggleCollapse={() => {
+              const panel = sidebarRef.current
+              if (panel) {
+                if (panel.isCollapsed()) panel.expand()
+                else panel.collapse()
+              }
+            }}
+            onAddWorkspace={() => setShowCreateModal(true)}
+            onSelectWorkspace={handleSelectWorkspace}
+            onDeleteWorkspace={confirmDeleteWorkspace}
+            onOpenSettings={() => setShowSettingsModal(true)}
+          />
+        </Panel>
         
-        {loading ? (
-          <div style={{
-            flex: 1, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', flexDirection: 'column', gap: 8,
-          }}>
-            <span style={{ color: 'var(--text-inactive)', fontSize: 13 }}>Starting…</span>
-          </div>
-        ) : workspaces.length > 0 ? (
-          workspaces.map((ws) => (
-            <div
-              key={ws.id}
-              style={{
-                display: ws.id === activeWorkspaceId ? 'flex' : 'none',
-                flex: 1, flexDirection: 'column', height: '100%', overflow: 'hidden'
-              }}
-            >
-              <WorkspaceView
-                workspace={ws}
-                onEditWorkspace={setEditingWorkspace}
-              />
+        <SidebarResizeHandle />
+        
+        <Panel id="main-panel" style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* Always show bootstrap/spawn errors prominently at the top */}
+          {bootstrapError && (
+            <div style={{
+              padding: '8px 14px', background: 'rgba(224,123,123,0.15)',
+              borderBottom: '1px solid rgba(224,123,123,0.4)',
+              color: '#e07b7b', fontSize: 12, flexShrink: 0,
+            }}>
+              ⚠ {bootstrapError}
             </div>
-          ))
-        ) : (
-          <div style={{
-            flex: 1, display: 'flex', alignItems: 'center',
-            justifyContent: 'center', flexDirection: 'column', gap: 8,
-          }}>
-            <span style={{ color: 'var(--text-inactive)', fontSize: 13 }}>No workspace selected</span>
-          </div>
-        )}
-      </div>
+          )}
+          
+          {loading ? (
+            <div style={{
+              flex: 1, display: 'flex', alignItems: 'center',
+              justifyContent: 'center', flexDirection: 'column', gap: 8,
+            }}>
+              <span style={{ color: 'var(--text-inactive)', fontSize: 13 }}>Starting…</span>
+            </div>
+          ) : workspaces.length > 0 ? (
+            workspaces.map((ws) => (
+              <div
+                key={ws.id}
+                style={{
+                  display: ws.id === activeWorkspaceId ? 'flex' : 'none',
+                  flex: 1, flexDirection: 'column', height: '100%', overflow: 'hidden'
+                }}
+              >
+                <WorkspaceView
+                  workspace={ws}
+                  onEditWorkspace={setEditingWorkspace}
+                />
+              </div>
+            ))
+          ) : (
+            <div style={{
+              flex: 1, display: 'flex', alignItems: 'center',
+              justifyContent: 'center', flexDirection: 'column', gap: 8,
+            }}>
+              <span style={{ color: 'var(--text-inactive)', fontSize: 13 }}>No workspace selected</span>
+            </div>
+          )}
+        </Panel>
+      </Group>
 
       {showCreateModal && (
         <WorkspaceModal onSave={handleCreateWorkspace} onCancel={() => setShowCreateModal(false)} />
@@ -185,6 +258,17 @@ export default function App() {
       )}
       {showSettingsModal && (
         <SettingsModal onClose={() => setShowSettingsModal(false)} />
+      )}
+      {workspaceToDelete && (
+        <ConfirmModal
+          title="Delete Workspace"
+          message={`Are you sure you want to delete the "${workspaceToDelete.name}" workspace? All terminals and their histories will be permanently deleted.`}
+          confirmText="Delete Workspace"
+          cancelText="Cancel"
+          isDestructive={true}
+          onConfirm={executeDeleteWorkspace}
+          onCancel={() => setWorkspaceToDelete(null)}
+        />
       )}
     </div>
   )
