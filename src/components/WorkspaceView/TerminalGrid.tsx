@@ -116,6 +116,7 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
         <Group 
           orientation={node.direction} 
           id={node.id}
+          autoSave={node.id}
           // @ts-ignore: onLayout takes number[]
           onLayout={(sizes: number[]) => {
             updateLayoutSizes(workspaceId, node.id, sizes)

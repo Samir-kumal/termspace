@@ -11,8 +11,8 @@
 - **Toast Notifications:** A sleek, animated notification system that slides in from the bottom right to silently confirm background actions (e.g., Terminal created/closed, Settings saved, Workspace created/updated/deleted).
 - **Terminal Tabs Overlay:** A neat, floating, glassmorphic UI tab overlay that appears when multiple terminals are open, allowing you to easily switch focus or close specific panes.
 - **Command Palette (Cmd+K):** Spotlight-style omnibar over the app for running commands, jumping to different workspaces, and accessing settings.
+- **State Persistence (Auto-Save layout sizes):** Saved the specific resizing percentages of the terminal layout grid so everything stays exactly how you left it after a restart.
 
 ## In Progress
 
 ## Planned
-- **State Persistence (Auto-Save layout sizes)**
