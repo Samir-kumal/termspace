@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SerializeAddon } from '@xterm/addon-serialize'
+import { SearchAddon } from '@xterm/addon-search'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useAppStore } from '../../store/useAppStore'
@@ -48,9 +49,14 @@ import { useKeybindingHandler } from '../../hooks/useGlobalKeybindings'
 export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, scrollback, onFocus, onToggleMaximize, onClose, isDragOver }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<XTerm | null>(null)
+  const searchAddonRef = useRef<SearchAddon | null>(null)
   const unlistenRef = useRef<Promise<() => void> | null>(null)
   const [isHovered, setIsHovered] = useState(false)
   
+  const [showSearch, setShowSearch] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
   const settings = useAppStore((s) => s.settings)
   const keybindingHandler = useKeybindingHandler()
   const keybindingHandlerRef = useRef(keybindingHandler)
@@ -80,11 +86,22 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
 
     const fitAddon = new FitAddon()
     const serializeAddon = new SerializeAddon()
+    const searchAddon = new SearchAddon()
     xterm.loadAddon(fitAddon)
     xterm.loadAddon(serializeAddon)
+    xterm.loadAddon(searchAddon)
+    searchAddonRef.current = searchAddon
     
     xterm.attachCustomKeyEventHandler((e) => {
       if (e.type === 'keydown') {
+        // Cmd/Ctrl + F to toggle search
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f') {
+          e.preventDefault()
+          setShowSearch(true)
+          setTimeout(() => searchInputRef.current?.focus(), 50)
+          return false
+        }
+        
         const handled = keybindingHandlerRef.current(e)
         if (handled) return false // Tell xterm not to process this key
       }
@@ -163,7 +180,69 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
       <div style={{ flex: 1, minHeight: 0, padding: '10px 0 10px 12px' }}>
         <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       </div>
-      {isHovered && (
+
+      {showSearch && (
+        <div
+          style={{
+            position: 'absolute', top: 10, right: 10, zIndex: 20,
+            background: 'var(--bg-sidebar)', border: '1px solid var(--border-inactive)',
+            borderRadius: 6, padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 6,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.2)'
+          }}
+          onClick={e => e.stopPropagation()}
+        >
+          <input
+            ref={searchInputRef}
+            type="text"
+            placeholder="Find..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value)
+              searchAddonRef.current?.findNext(e.target.value)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                if (e.shiftKey) searchAddonRef.current?.findPrevious(searchQuery)
+                else searchAddonRef.current?.findNext(searchQuery)
+              }
+              if (e.key === 'Escape') {
+                setShowSearch(false)
+                xtermRef.current?.focus()
+              }
+            }}
+            style={{
+              background: 'transparent', border: 'none', color: 'var(--text-active)',
+              outline: 'none', fontSize: 13, width: 150
+            }}
+          />
+          <button
+            onClick={() => searchAddonRef.current?.findPrevious(searchQuery)}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-inactive)', cursor: 'pointer', padding: 2 }}
+            title="Find Previous (Shift+Enter)"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="18 15 12 9 6 15"></polyline></svg>
+          </button>
+          <button
+            onClick={() => searchAddonRef.current?.findNext(searchQuery)}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-inactive)', cursor: 'pointer', padding: 2 }}
+            title="Find Next (Enter)"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div style={{ width: 1, height: 16, background: 'var(--border-inactive)', margin: '0 2px' }} />
+          <button
+            onClick={() => {
+              setShowSearch(false)
+              xtermRef.current?.focus()
+            }}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-inactive)', cursor: 'pointer', padding: 2 }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          </button>
+        </div>
+      )}
+
+      {isHovered && !showSearch && (
         <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, display: 'flex', gap: 6 }}>
           <div
             draggable
