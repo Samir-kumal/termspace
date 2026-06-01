@@ -1,8 +1,7 @@
 import { invoke } from '../../utils/tauri'
 import { useAppStore } from '../../store/useAppStore'
-import { Workspace, Terminal } from '../../types'
+import { Workspace, Terminal, BrowserPane as BrowserPaneType } from '../../types'
 import { TerminalGrid } from './TerminalGrid'
-import { TerminalTabsOverlay } from './TerminalTabsOverlay'
 import { WorkspaceHeader } from './WorkspaceHeader'
 
 interface Props {
@@ -10,8 +9,9 @@ interface Props {
   onEditWorkspace: (workspace: Workspace) => void
 }
 
-// Stable reference — prevents Zustand infinite re-render when no terminals exist yet
+// Stable references — prevents Zustand infinite re-render when no items exist yet
 const EMPTY_TERMINALS: Terminal[] = []
+const EMPTY_BROWSER_PANES: BrowserPaneType[] = []
 
 export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
   const terminals = useAppStore((s) => s.terminalsByWorkspace[workspace.id] ?? EMPTY_TERMINALS)
@@ -19,6 +19,9 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
   const addTerminal = useAppStore((s) => s.addTerminal)
   const setActiveTerminalId = useAppStore((s) => s.setActiveTerminalId)
   const removeTerminal = useAppStore((s) => s.removeTerminal)
+  const browserPanes = useAppStore((s) => s.browserPanesByWorkspace[workspace.id] ?? EMPTY_BROWSER_PANES)
+  const addBrowserPane = useAppStore((s) => s.addBrowserPane)
+  const removeBrowserPane = useAppStore((s) => s.removeBrowserPane)
 
   const handleAddTerminal = async (targetId?: string, direction?: 'horizontal' | 'vertical') => {
     try {
@@ -55,13 +58,47 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
     }
   }
 
+  const handleAddBrowserPane = async (targetId?: string, direction?: 'horizontal' | 'vertical') => {
+    try {
+      const pane = await invoke<BrowserPaneType>('create_browser_pane', {
+        workspaceId: workspace.id,
+        url: 'about:blank',
+        x: -10000, y: -10000, w: 800, h: 600,
+      })
+      addBrowserPane(workspace.id, pane, targetId, direction)
+      setActiveTerminalId(pane.id)
+      useAppStore.getState().addToast('Browser pane created', 'info')
+    } catch (err) {
+      console.error('create_browser_pane failed:', err)
+      useAppStore.getState().addToast('Failed to create browser pane', 'error')
+    }
+  }
+
+  const handleCloseBrowserPane = async (browserPaneId: string) => {
+    try {
+      await invoke('destroy_browser_pane', { id: browserPaneId })
+    } catch (err) {
+      console.error('destroy_browser_pane failed:', err)
+    }
+    removeBrowserPane(workspace.id, browserPaneId)
+    useAppStore.getState().addToast('Browser pane closed', 'info')
+    if (activeTerminalId === browserPaneId) {
+      const remaining = [...terminals, ...browserPanes].filter(p => p.id !== browserPaneId)
+      setActiveTerminalId(remaining.length > 0 ? remaining[remaining.length - 1].id : null)
+    }
+  }
+
   return (
     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
       <WorkspaceHeader
         workspace={workspace}
         terminals={terminals}
+        activeTerminalId={activeTerminalId}
         onAddTerminal={() => handleAddTerminal()}
+        onAddBrowserPane={() => handleAddBrowserPane()}
         onEditWorkspace={() => onEditWorkspace(workspace)}
+        onSelectTerminal={setActiveTerminalId}
+        onCloseTerminal={handleCloseTerminal}
       />
       {terminals.length > 0 ? (
         <div style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column' }}>
@@ -72,12 +109,8 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
             onFocus={setActiveTerminalId}
             onClose={handleCloseTerminal}
             onSplit={(terminalId, direction) => handleAddTerminal(terminalId, direction)}
-          />
-          <TerminalTabsOverlay
-            terminals={terminals}
-            activeTerminalId={activeTerminalId}
-            onSelectTerminal={setActiveTerminalId}
-            onCloseTerminal={handleCloseTerminal}
+            onCloseBrowserPane={handleCloseBrowserPane}
+            onSplitBrowserPane={(browserPaneId, direction) => handleAddBrowserPane(browserPaneId, direction)}
           />
         </div>
       ) : (
