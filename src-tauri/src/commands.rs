@@ -257,8 +257,10 @@ pub fn destroy_browser_pane(
     browser: State<BrowserPaneManager>,
     id: String,
 ) -> Result<(), String> {
+    let conn = db.0.lock().unwrap();
+    db::delete_browser_pane(&conn, &id).map_err(|e| e.to_string())?;
     browser.destroy(&id);
-    db::delete_browser_pane(&db.0.lock().unwrap(), &id).map_err(|e| e.to_string())
+    Ok(())
 }
 
 #[tauri::command]
