@@ -41,14 +41,21 @@ pub fn update_workspace(
 pub fn delete_workspace(
     db: State<DbState>,
     pty: State<PtyManager>,
+    browser: State<BrowserPaneManager>,
     id: String,
 ) -> Result<(), String> {
     {
         let conn = db.0.lock().unwrap();
-        // Fetch terminals to kill their processes
+        // Kill terminal processes
         if let Ok(terminals) = db::get_terminals(&conn, &id) {
             for t in terminals {
                 pty.kill(&t.id);
+            }
+        }
+        // Destroy browser pane webviews
+        if let Ok(panes) = db::get_browser_panes(&conn, &id) {
+            for p in panes {
+                browser.destroy(&p.id);
             }
         }
         db::delete_workspace(&conn, &id).map_err(|e| e.to_string())?;
@@ -190,7 +197,10 @@ pub fn create_browser_pane(
         .create(&window, &app, &id, &url, x, y, w, h)
         .map_err(|e| e.to_string())?;
     db::create_browser_pane(&db.0.lock().unwrap(), &id, &workspace_id, &url)
-        .map_err(|e| e.to_string())
+        .map_err(|e| {
+            browser.destroy(&id); // rollback native webview if DB insert fails
+            e.to_string()
+        })
 }
 
 #[tauri::command]

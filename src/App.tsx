@@ -211,6 +211,12 @@ export default function App() {
     const currentTerminals = useAppStore.getState().terminalsByWorkspace[id]
     if (!currentTerminals) {
       await activateWorkspace(id)
+    } else {
+      // Already loaded — just re-show browser panes that were hidden on switch-away
+      const panes = useAppStore.getState().browserPanesByWorkspace[id] ?? []
+      for (const pane of panes) {
+        invoke('show_browser_pane', { id: pane.id }).catch(() => {})
+      }
     }
   }
 
