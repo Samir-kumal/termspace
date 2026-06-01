@@ -296,17 +296,30 @@ mod tests {
     }
 
     #[test]
-    fn test_init_creates_three_tables() {
-        let conn = open_test_db();
+    fn test_init_creates_four_tables() {
+        // Exercise the real production `init_db` so this test reflects the
+        // actual schema shipped to users, not a hand-rolled subset.
+        let path = std::env::temp_dir().join(format!(
+            "termspace_init_test_{}_{}.db",
+            std::process::id(),
+            now_ms()
+        ));
+        let conn = init_db(&path).unwrap();
         let count: i64 = conn
             .query_row(
                 "SELECT count(*) FROM sqlite_master WHERE type='table'
-                 AND name IN ('workspaces','terminals','scrollback')",
+                 AND name IN ('workspaces','terminals','scrollback','browser_panes')",
                 [],
                 |r| r.get(0),
             )
             .unwrap();
-        assert_eq!(count, 3);
+        assert_eq!(count, 4);
+
+        // Clean up the temp DB file (and any WAL/SHM sidecars).
+        drop(conn);
+        let _ = std::fs::remove_file(&path);
+        let _ = std::fs::remove_file(path.with_extension("db-wal"));
+        let _ = std::fs::remove_file(path.with_extension("db-shm"));
     }
 
     #[test]
