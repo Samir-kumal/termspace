@@ -77,14 +77,15 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
   const handleCloseBrowserPane = async (browserPaneId: string) => {
     try {
       await invoke('destroy_browser_pane', { id: browserPaneId })
+      removeBrowserPane(workspace.id, browserPaneId)
+      useAppStore.getState().addToast('Browser pane closed', 'info')
+      if (activeTerminalId === browserPaneId) {
+        const remaining = [...terminals, ...browserPanes].filter(p => p.id !== browserPaneId)
+        setActiveTerminalId(remaining.length > 0 ? remaining[remaining.length - 1].id : null)
+      }
     } catch (err) {
       console.error('destroy_browser_pane failed:', err)
-    }
-    removeBrowserPane(workspace.id, browserPaneId)
-    useAppStore.getState().addToast('Browser pane closed', 'info')
-    if (activeTerminalId === browserPaneId) {
-      const remaining = [...terminals, ...browserPanes].filter(p => p.id !== browserPaneId)
-      setActiveTerminalId(remaining.length > 0 ? remaining[remaining.length - 1].id : null)
+      useAppStore.getState().addToast('Failed to close browser pane', 'error')
     }
   }
 
