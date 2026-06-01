@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { useAppStore } from '../../store/useAppStore'
 import { Workspace, Terminal } from '../../types'
 import { TerminalGrid } from './TerminalGrid'
+import { TerminalTabsOverlay } from './TerminalTabsOverlay'
 import { WorkspaceHeader } from './WorkspaceHeader'
 
 interface Props {
@@ -58,14 +59,22 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
         onEditWorkspace={() => onEditWorkspace(workspace)}
       />
       {terminals.length > 0 ? (
-        <TerminalGrid
-          workspaceId={workspace.id}
-          terminals={terminals}
-          activeTerminalId={activeTerminalId}
-          onFocus={setActiveTerminalId}
-          onClose={handleCloseTerminal}
-          onSplit={(terminalId, direction) => handleAddTerminal(terminalId, direction)}
-        />
+        <div style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <TerminalGrid
+            workspaceId={workspace.id}
+            terminals={terminals}
+            activeTerminalId={activeTerminalId}
+            onFocus={setActiveTerminalId}
+            onClose={handleCloseTerminal}
+            onSplit={(terminalId, direction) => handleAddTerminal(terminalId, direction)}
+          />
+          <TerminalTabsOverlay
+            terminals={terminals}
+            activeTerminalId={activeTerminalId}
+            onSelectTerminal={setActiveTerminalId}
+            onCloseTerminal={handleCloseTerminal}
+          />
+        </div>
       ) : (
         <div style={{
           flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center',
