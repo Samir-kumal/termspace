@@ -1,6 +1,7 @@
 import { useAppStore } from '../../store/useAppStore'
 import { AddWorkspaceButton } from './AddWorkspaceButton'
 import { WorkspaceItem } from './WorkspaceItem'
+import { motion, AnimatePresence } from 'framer-motion'
 
 interface Props {
   isCollapsed: boolean
@@ -64,18 +65,30 @@ export function WorkspaceSidebar({ isCollapsed, onToggleCollapse, onAddWorkspace
         </button>
       </div>
 
-      {workspaces.map((ws) => (
-        <WorkspaceItem
-          key={ws.id}
-          workspace={ws}
-          isActive={ws.id === activeWorkspaceId}
-          canDelete={workspaces.length > 1}
-          isCollapsed={isCollapsed}
-          onClick={() => onSelectWorkspace(ws.id)}
-          onDelete={() => onDeleteWorkspace(ws.id)}
-        />
-      ))}
-      <AddWorkspaceButton onClick={onAddWorkspace} isCollapsed={isCollapsed} />
+      <AnimatePresence>
+        {workspaces.map((ws) => (
+          <motion.div
+            key={ws.id}
+            layout
+            initial={{ opacity: 0, height: 0, scale: 0.9 }}
+            animate={{ opacity: 1, height: 'auto', scale: 1 }}
+            exit={{ opacity: 0, height: 0, scale: 0.9 }}
+            transition={{ duration: 0.2 }}
+          >
+            <WorkspaceItem
+              workspace={ws}
+              isActive={ws.id === activeWorkspaceId}
+              canDelete={workspaces.length > 1}
+              isCollapsed={isCollapsed}
+              onClick={() => onSelectWorkspace(ws.id)}
+              onDelete={() => onDeleteWorkspace(ws.id)}
+            />
+          </motion.div>
+        ))}
+      </AnimatePresence>
+      <motion.div layout transition={{ duration: 0.2 }}>
+        <AddWorkspaceButton onClick={onAddWorkspace} isCollapsed={isCollapsed} />
+      </motion.div>
 
       <div style={{ flex: 1 }} />
       

@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { motion } from 'framer-motion'
 import { useAppStore, Settings } from '../../store/useAppStore'
 
 interface Props {
@@ -18,7 +19,10 @@ export function SettingsModal({ onClose }: Props) {
   }
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
       style={{
         position: 'fixed', top: 0, left: 0, width: '100vw', height: '100vh',
         background: 'rgba(0,0,0,0.5)', zIndex: 100,
@@ -27,7 +31,10 @@ export function SettingsModal({ onClose }: Props) {
       }}
       onClick={onClose}
     >
-      <div
+      <motion.div
+        initial={{ opacity: 0, y: 15, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 15, scale: 0.98 }}
         style={{
           background: 'var(--bg-main)', border: '1px solid var(--border-inactive)',
           borderRadius: 8, padding: 24, width: 400,
@@ -92,7 +99,7 @@ export function SettingsModal({ onClose }: Props) {
             Save Changes
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }

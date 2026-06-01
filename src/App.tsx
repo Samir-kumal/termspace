@@ -8,6 +8,7 @@ import { SettingsModal } from './components/SettingsModal/SettingsModal'
 import { ConfirmModal } from './components/ConfirmModal/ConfirmModal'
 import { Workspace, Terminal } from './types'
 import { Group, Panel, Separator, usePanelRef } from 'react-resizable-panels'
+import { AnimatePresence } from 'framer-motion'
 
 const SidebarResizeHandle = () => (
   <Separator
@@ -246,30 +247,38 @@ export default function App() {
         </Panel>
       </Group>
 
-      {showCreateModal && (
-        <WorkspaceModal onSave={handleCreateWorkspace} onCancel={() => setShowCreateModal(false)} />
-      )}
-      {editingWorkspace && (
-        <WorkspaceModal
-          initial={editingWorkspace}
-          onSave={handleEditWorkspace}
-          onCancel={() => setEditingWorkspace(null)}
-        />
-      )}
-      {showSettingsModal && (
-        <SettingsModal onClose={() => setShowSettingsModal(false)} />
-      )}
-      {workspaceToDelete && (
-        <ConfirmModal
-          title="Delete Workspace"
-          message={`Are you sure you want to delete the "${workspaceToDelete.name}" workspace? All terminals and their histories will be permanently deleted.`}
-          confirmText="Delete Workspace"
-          cancelText="Cancel"
-          isDestructive={true}
-          onConfirm={executeDeleteWorkspace}
-          onCancel={() => setWorkspaceToDelete(null)}
-        />
-      )}
+      <AnimatePresence>
+        {showCreateModal && (
+          <WorkspaceModal onSave={handleCreateWorkspace} onCancel={() => setShowCreateModal(false)} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {editingWorkspace && (
+          <WorkspaceModal
+            initial={editingWorkspace}
+            onSave={handleEditWorkspace}
+            onCancel={() => setEditingWorkspace(null)}
+          />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {showSettingsModal && (
+          <SettingsModal onClose={() => setShowSettingsModal(false)} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {workspaceToDelete && (
+          <ConfirmModal
+            title="Delete Workspace"
+            message={`Are you sure you want to delete the "${workspaceToDelete.name}" workspace? All terminals and their histories will be permanently deleted.`}
+            confirmText="Delete Workspace"
+            cancelText="Cancel"
+            isDestructive={true}
+            onConfirm={executeDeleteWorkspace}
+            onCancel={() => setWorkspaceToDelete(null)}
+          />
+        )}
+      </AnimatePresence>
     </div>
   )
 }

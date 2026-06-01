@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { motion } from 'framer-motion'
 import { Terminal as TerminalType } from '../../types'
 import { TerminalPane } from './TerminalPane'
 import { Group, Panel, Separator } from 'react-resizable-panels'
@@ -49,8 +50,11 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
   const renderTerminal = (t?: TerminalType) => {
     if (!t) return null
     return (
-      <div
+      <motion.div
         key={t.id}
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={{ duration: 0.2 }}
         style={{
           display: isMaximized && maximizedTerminalId !== t.id ? 'none' : 'flex',
           width: '100%',
@@ -72,7 +76,7 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
             onClose(t.id)
           }}
         />
-      </div>
+      </motion.div>
     )
   }
 

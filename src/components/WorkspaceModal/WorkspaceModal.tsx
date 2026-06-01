@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { motion } from 'framer-motion'
 import { Workspace } from '../../types'
 
 const EMOJIS = ['💻', '🔥', '🌿', '⚡', '🚀', '🎯', '🛠️', '📦', '🔬', '🌊']
@@ -16,14 +17,20 @@ export function WorkspaceModal({ initial, onSave, onCancel }: Props) {
   const [color, setColor] = useState(initial?.color ?? '#e8a045')
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
       style={{
         position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
         display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100,
       }}
       onClick={onCancel}
     >
-      <div
+      <motion.div
+        initial={{ opacity: 0, y: 15, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        exit={{ opacity: 0, y: 15, scale: 0.98 }}
         style={{
           background: 'var(--bg-sidebar)', border: '1px solid var(--border-inactive)',
           borderRadius: 8, padding: 24, minWidth: 320,
@@ -98,7 +105,7 @@ export function WorkspaceModal({ initial, onSave, onCancel }: Props) {
             {initial ? 'Save' : 'Create'}
           </button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }

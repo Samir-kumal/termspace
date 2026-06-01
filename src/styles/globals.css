@@ -89,3 +89,8 @@ html, body, #root {
   opacity: 1;
   color: var(--text-active);
 }
+
+/* Global smooth transition for all panels (sidebar, terminal grid) when NOT dragging */
+[data-panel-group]:not(:has([data-panel-resize-handle-state="drag"])) > [data-panel] {
+  transition: flex 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
+}
