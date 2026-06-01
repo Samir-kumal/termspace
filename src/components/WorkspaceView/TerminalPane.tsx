@@ -142,6 +142,30 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
       </div>
       {isHovered && (
         <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, display: 'flex', gap: 6 }}>
+          <div
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData('application/terminal-id', terminalId)
+              e.dataTransfer.effectAllowed = 'move'
+            }}
+            title="Drag to reorder"
+            style={{
+              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(34, 30, 24, 0.8)', border: '1px solid var(--border-inactive)',
+              borderRadius: 6, color: 'var(--text-inactive)', cursor: 'grab',
+              fontSize: 12, backdropFilter: 'blur(4px)', transition: 'all 0.15s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#ffffff'
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.5)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'var(--text-inactive)'
+              e.currentTarget.style.borderColor = 'var(--border-inactive)'
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+          </div>
           <button
             onClick={(e) => {
               e.stopPropagation()

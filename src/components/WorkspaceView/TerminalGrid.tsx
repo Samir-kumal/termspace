@@ -3,6 +3,7 @@ import { motion } from 'framer-motion'
 import { Terminal as TerminalType } from '../../types'
 import { TerminalPane } from './TerminalPane'
 import { Group, Panel, Separator } from 'react-resizable-panels'
+import { useAppStore } from '../../store/useAppStore'
 
 interface Props {
   workspaceId: string
@@ -42,6 +43,7 @@ const CustomResizeHandle = ({ id, direction }: { id: string, direction: 'horizon
 
 export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus, onClose }: Props) {
   const [maximizedTerminalId, setMaximizedTerminalId] = useState<string | null>(null)
+  const reorderTerminals = useAppStore((s) => s.reorderTerminals)
 
   if (terminals.length === 0) return null
 
@@ -55,6 +57,17 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.2 }}
+        onDragOver={(e) => {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = 'move'
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          const sourceId = e.dataTransfer.getData('application/terminal-id')
+          if (sourceId && sourceId !== t.id) {
+            reorderTerminals(workspaceId, sourceId, t.id)
+          }
+        }}
         style={{
           display: isMaximized && maximizedTerminalId !== t.id ? 'none' : 'flex',
           width: '100%',

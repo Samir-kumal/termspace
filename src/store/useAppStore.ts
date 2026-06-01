@@ -22,6 +22,7 @@ interface AppState {
   setTerminals: (workspaceId: string, terminals: Terminal[]) => void
   addTerminal: (workspaceId: string, terminal: Terminal) => void
   removeTerminal: (workspaceId: string, terminalId: string) => void
+  reorderTerminals: (workspaceId: string, sourceTerminalId: string, targetTerminalId: string) => void
   setActiveTerminalId: (id: string | null) => void
   updateSettings: (settings: Partial<Settings>) => void
 }
@@ -81,6 +82,25 @@ export const useAppStore = create<AppState>()(
             ),
           },
         })),
+
+      reorderTerminals: (workspaceId, sourceTerminalId, targetTerminalId) =>
+        set((s) => {
+          const currentTerminals = s.terminalsByWorkspace[workspaceId] ?? []
+          const sourceIndex = currentTerminals.findIndex((t) => t.id === sourceTerminalId)
+          const targetIndex = currentTerminals.findIndex((t) => t.id === targetTerminalId)
+          if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) return s
+
+          const newTerminals = [...currentTerminals]
+          const [removed] = newTerminals.splice(sourceIndex, 1)
+          newTerminals.splice(targetIndex, 0, removed)
+
+          return {
+            terminalsByWorkspace: {
+              ...s.terminalsByWorkspace,
+              [workspaceId]: newTerminals,
+            },
+          }
+        }),
 
       setActiveTerminalId: (id) => set({ activeTerminalId: id }),
 
