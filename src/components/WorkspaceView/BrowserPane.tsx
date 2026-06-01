@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, useLayoutEffect } from 'react'
+import { useEffect, useRef, useState, useLayoutEffect, useCallback } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '../../utils/tauri'
 
@@ -23,7 +23,7 @@ export function BrowserPane({
   const holeRef = useRef<HTMLDivElement>(null)
 
   // Sync native webview position whenever the hole div's bounds change
-  const syncBounds = () => {
+  const syncBounds = useCallback(() => {
     if (!holeRef.current) return
     const rect = holeRef.current.getBoundingClientRect()
     if (rect.width < 1 || rect.height < 1) return
@@ -34,7 +34,7 @@ export function BrowserPane({
       w: rect.width,
       h: rect.height,
     }).catch(() => {}) // non-fatal, next resize will retry
-  }
+  }, [browserPaneId])
 
   // ResizeObserver — fires on drag-handle resize
   useLayoutEffect(() => {
@@ -44,15 +44,13 @@ export function BrowserPane({
     ro.observe(el)
     syncBounds() // initial sync
     return () => ro.disconnect()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [browserPaneId])
+  }, [syncBounds])
 
   // Window resize
   useEffect(() => {
     window.addEventListener('resize', syncBounds)
     return () => window.removeEventListener('resize', syncBounds)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [browserPaneId])
+  }, [syncBounds])
 
   // Listen for URL change events from native webview
   useEffect(() => {
