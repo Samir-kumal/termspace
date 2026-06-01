@@ -43,6 +43,8 @@ const XTERM_THEMES = {
   }
 }
 
+import { useKeybindingHandler } from '../../hooks/useGlobalKeybindings'
+
 export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, scrollback, onFocus, onToggleMaximize, onClose, isDragOver }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<XTerm | null>(null)
@@ -50,6 +52,12 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
   const [isHovered, setIsHovered] = useState(false)
   
   const settings = useAppStore((s) => s.settings)
+  const keybindingHandler = useKeybindingHandler()
+  const keybindingHandlerRef = useRef(keybindingHandler)
+
+  useEffect(() => {
+    keybindingHandlerRef.current = keybindingHandler
+  }, [keybindingHandler])
 
   // Apply settings to XTerm whenever they change
   useEffect(() => {
@@ -74,6 +82,15 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
     const serializeAddon = new SerializeAddon()
     xterm.loadAddon(fitAddon)
     xterm.loadAddon(serializeAddon)
+    
+    xterm.attachCustomKeyEventHandler((e) => {
+      if (e.type === 'keydown') {
+        const handled = keybindingHandlerRef.current(e)
+        if (handled) return false // Tell xterm not to process this key
+      }
+      return true
+    })
+
     xterm.open(containerRef.current)
     fitAddon.fit()
     xtermRef.current = xterm

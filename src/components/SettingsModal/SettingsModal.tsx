@@ -12,9 +12,15 @@ export function SettingsModal({ onClose }: Props) {
 
   const [theme, setTheme] = useState<Settings['theme']>(settings.theme)
   const [fontSize, setFontSize] = useState(settings.fontSize)
+  const [keybindings, setKeybindings] = useState(settings.keybindings || {
+    newTerminal: 'CmdOrCtrl+T',
+    closeTerminal: 'CmdOrCtrl+W',
+    nextTerminal: 'CmdOrCtrl+Shift+]',
+    prevTerminal: 'CmdOrCtrl+Shift+[',
+  })
 
   function handleSave() {
-    updateSettings({ theme, fontSize })
+    updateSettings({ theme, fontSize, keybindings })
     onClose()
   }
 
@@ -82,6 +88,33 @@ export function SettingsModal({ onClose }: Props) {
             onFocus={(e) => e.currentTarget.style.borderColor = 'var(--accent)'}
             onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border-inactive)'}
           />
+        </div>
+
+        <div style={{ borderTop: '1px solid var(--border-inactive)', margin: '10px 0' }} />
+
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-active)' }}>Keybindings</div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+          {(Object.keys(keybindings) as (keyof typeof keybindings)[]).map((key) => (
+            <div key={key} style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+              <label style={{ fontSize: 13, color: 'var(--text-inactive)', fontWeight: 500 }}>
+                {key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
+              </label>
+              <input
+                type="text"
+                value={keybindings[key]}
+                onChange={(e) => setKeybindings({ ...keybindings, [key]: e.target.value })}
+                style={{
+                  padding: '8px 12px', background: 'var(--bg-sidebar)',
+                  border: '1px solid var(--border-inactive)', borderRadius: 6,
+                  color: 'var(--text-active)', outline: 'none', fontSize: 13,
+                  transition: 'border 0.2s', width: '100%'
+                }}
+                onFocus={(e) => e.currentTarget.style.borderColor = 'var(--accent)'}
+                onBlur={(e) => e.currentTarget.style.borderColor = 'var(--border-inactive)'}
+              />
+            </div>
+          ))}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 16 }}>

@@ -2,9 +2,17 @@ import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { Workspace, Terminal } from '../types'
 
+export interface Keybindings {
+  newTerminal: string
+  closeTerminal: string
+  nextTerminal: string
+  prevTerminal: string
+}
+
 export interface Settings {
   theme: 'warm-dark' | 'cold-dark' | 'light'
   fontSize: number
+  keybindings: Keybindings
 }
 
 interface AppState {
@@ -37,6 +45,12 @@ export const useAppStore = create<AppState>()(
       settings: {
         theme: 'warm-dark',
         fontSize: 13,
+        keybindings: {
+          newTerminal: 'CmdOrCtrl+T',
+          closeTerminal: 'CmdOrCtrl+W',
+          nextTerminal: 'CmdOrCtrl+Shift+]',
+          prevTerminal: 'CmdOrCtrl+Shift+[',
+        }
       },
 
       setWorkspaces: (workspaces) => set({ workspaces }),

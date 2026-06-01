@@ -6,6 +6,7 @@ import { WorkspaceView } from './components/WorkspaceView/WorkspaceView'
 import { WorkspaceModal } from './components/WorkspaceModal/WorkspaceModal'
 import { SettingsModal } from './components/SettingsModal/SettingsModal'
 import { ConfirmModal } from './components/ConfirmModal/ConfirmModal'
+import { useGlobalKeybindings } from './hooks/useGlobalKeybindings'
 import { Workspace, Terminal } from './types'
 import { Group, Panel, Separator, usePanelRef } from 'react-resizable-panels'
 import { AnimatePresence } from 'framer-motion'
@@ -55,6 +56,8 @@ export default function App() {
 
   const sidebarRef = usePanelRef()
   const settings = useAppStore((s) => s.settings)
+
+  useGlobalKeybindings()
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', settings.theme)
