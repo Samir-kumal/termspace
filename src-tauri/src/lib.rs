@@ -3,6 +3,7 @@ mod commands;
 mod db;
 mod pty_manager;
 
+use browser_pane_manager::BrowserPaneManager;
 use commands::DbState;
 use pty_manager::PtyManager;
 use std::sync::Mutex;
@@ -18,6 +19,7 @@ pub fn run() {
             let conn = db::init_db(&data_dir.join("state.db")).expect("db init failed");
             app.manage(DbState(Mutex::new(conn)));
             app.manage(PtyManager::new());
+            app.manage(BrowserPaneManager::new());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -34,6 +36,18 @@ pub fn run() {
             commands::resize_pty,
             commands::load_scrollback,
             commands::save_scrollback,
+            commands::create_browser_pane,
+            commands::respawn_browser_pane,
+            commands::navigate_browser_pane,
+            commands::save_browser_pane_url,
+            commands::resize_browser_pane,
+            commands::show_browser_pane,
+            commands::hide_browser_pane,
+            commands::destroy_browser_pane,
+            commands::browser_go_back,
+            commands::browser_go_forward,
+            commands::browser_reload,
+            commands::get_browser_panes,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

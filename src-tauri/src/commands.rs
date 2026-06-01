@@ -1,8 +1,9 @@
+use crate::browser_pane_manager::BrowserPaneManager;
 use crate::db::{self, Terminal, Workspace};
 use crate::pty_manager::PtyManager;
 use rusqlite::Connection;
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 pub struct DbState(pub Mutex<Connection>);
 
@@ -169,6 +170,121 @@ pub fn save_scrollback(
 ) -> Result<(), String> {
     let conn = db.0.lock().unwrap();
     db::save_scrollback(&conn, &id, &scrollback).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn create_browser_pane(
+    db: State<DbState>,
+    browser: State<BrowserPaneManager>,
+    app: tauri::AppHandle,
+    workspace_id: String,
+    url: String,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+) -> Result<db::BrowserPane, String> {
+    let id = uuid::Uuid::new_v4().to_string();
+    let window = app.get_webview_window("main").ok_or("no main window")?;
+    browser
+        .create(&window, &app, &id, &url, x, y, w, h)
+        .map_err(|e| e.to_string())?;
+    db::create_browser_pane(&db.0.lock().unwrap(), &id, &workspace_id, &url)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn respawn_browser_pane(
+    browser: State<BrowserPaneManager>,
+    app: tauri::AppHandle,
+    id: String,
+    url: String,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+) -> Result<(), String> {
+    let window = app.get_webview_window("main").ok_or("no main window")?;
+    browser
+        .create(&window, &app, &id, &url, x, y, w, h)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn navigate_browser_pane(
+    db: State<DbState>,
+    browser: State<BrowserPaneManager>,
+    id: String,
+    url: String,
+) -> Result<(), String> {
+    browser.navigate(&id, &url)?;
+    db::update_browser_pane_url(&db.0.lock().unwrap(), &id, &url).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn save_browser_pane_url(db: State<DbState>, id: String, url: String) -> Result<(), String> {
+    db::update_browser_pane_url(&db.0.lock().unwrap(), &id, &url).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn resize_browser_pane(
+    browser: State<BrowserPaneManager>,
+    id: String,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+) -> Result<(), String> {
+    browser.set_bounds(&id, x, y, w, h);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn show_browser_pane(browser: State<BrowserPaneManager>, id: String) -> Result<(), String> {
+    browser.show(&id);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn hide_browser_pane(browser: State<BrowserPaneManager>, id: String) -> Result<(), String> {
+    browser.hide(&id);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn destroy_browser_pane(
+    db: State<DbState>,
+    browser: State<BrowserPaneManager>,
+    id: String,
+) -> Result<(), String> {
+    browser.destroy(&id);
+    db::delete_browser_pane(&db.0.lock().unwrap(), &id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn browser_go_back(browser: State<BrowserPaneManager>, id: String) -> Result<(), String> {
+    browser.go_back(&id);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn browser_go_forward(browser: State<BrowserPaneManager>, id: String) -> Result<(), String> {
+    browser.go_forward(&id);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn browser_reload(browser: State<BrowserPaneManager>, id: String) -> Result<(), String> {
+    browser.reload(&id);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn get_browser_panes(
+    db: State<DbState>,
+    workspace_id: String,
+) -> Result<Vec<db::BrowserPane>, String> {
+    db::get_browser_panes(&db.0.lock().unwrap(), &workspace_id).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
