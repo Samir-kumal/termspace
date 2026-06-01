@@ -1,3 +1,4 @@
+mod browser_pane_manager;
 mod commands;
 mod db;
 mod pty_manager;

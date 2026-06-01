@@ -1,0 +1,194 @@
+//! Native child-webview pane manager.
+//!
+//! External sites cannot be embedded via `<iframe>` because of `X-Frame-Options`
+//! / CSP `frame-ancestors`. Instead we spawn a real Tauri child webview
+//! (`WKWebView` on macOS) positioned at pixel coordinates inside the main
+//! window. React draws a transparent placeholder at the same rectangle and the
+//! native webview floats behind it.
+//!
+//! Lifecycle (create / navigate / resize / show / hide / destroy) is owned here.
+//! All state is guarded by a single `Mutex` keyed by the React-side pane id.
+//!
+//! NOTE: `Window::add_child` is gated behind Tauri's `unstable` feature, which
+//! is enabled in `Cargo.toml`.
+
+use std::collections::HashMap;
+use std::sync::Mutex;
+
+use tauri::{Emitter, LogicalPosition, LogicalSize, WebviewBuilder, WebviewUrl, WebviewWindow};
+
+/// Offscreen coordinates used to "hide" a pane without destroying it. Keeping
+/// the webview alive preserves its navigation/session state, so showing it
+/// again is instant and does not re-trigger a network load.
+const HIDDEN_X: f64 = -10_000.0;
+const HIDDEN_Y: f64 = -10_000.0;
+
+/// A live native webview plus its last-known on-screen bounds. Bounds are
+/// cached so `show()` can restore the rectangle after a `hide()`.
+struct PaneEntry {
+    webview: tauri::Webview,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+}
+
+/// Owns every native browser-pane webview for the application.
+///
+/// Stored in Tauri managed state (registered in `lib.rs` by Task 3) and shared
+/// across command invocations. The internal `HashMap` gives O(1) lookup by id.
+pub struct BrowserPaneManager {
+    panes: Mutex<HashMap<String, PaneEntry>>,
+}
+
+impl Default for BrowserPaneManager {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl BrowserPaneManager {
+    pub fn new() -> Self {
+        Self {
+            panes: Mutex::new(HashMap::new()),
+        }
+    }
+
+    /// Creates a native child webview at the given logical rectangle and tracks
+    /// it under `id`. Navigation events are emitted to the frontend as
+    /// `browser-pane-url-changed` so React can persist the current URL.
+    ///
+    /// Idempotency: callers must ensure ids are unique. Re-creating an existing
+    /// id would build a second webview with a duplicate label and error out at
+    /// the runtime layer, so the manager refuses duplicates up front.
+    pub fn create(
+        &self,
+        window: &WebviewWindow,
+        app: &tauri::AppHandle,
+        id: &str,
+        url: &str,
+        x: f64,
+        y: f64,
+        w: f64,
+        h: f64,
+    ) -> Result<(), tauri::Error> {
+        // Reject duplicate ids before touching the runtime so we never leak a
+        // half-built webview that the map does not track.
+        {
+            let panes = self.panes.lock().unwrap();
+            if panes.contains_key(id) {
+                return Ok(());
+            }
+        }
+
+        let app_handle = app.clone();
+        let id_owned = id.to_string();
+
+        // Parse defensively: a malformed/empty URL must not panic the command
+        // thread. Fall back to about:blank, mirroring browser behavior.
+        let target_url = url
+            .parse()
+            .unwrap_or_else(|_| "about:blank".parse().expect("about:blank is a valid URL"));
+
+        let builder = WebviewBuilder::new(format!("browser-pane-{}", id), WebviewUrl::External(target_url))
+            .on_navigation(move |nav_url| {
+                // Returning `true` allows the navigation to proceed. We only
+                // observe it to keep the frontend's URL state in sync.
+                let _ = app_handle.emit(
+                    "browser-pane-url-changed",
+                    serde_json::json!({
+                        "id": id_owned,
+                        "url": nav_url.to_string(),
+                    }),
+                );
+                true
+            });
+
+        // `add_child` lives on `Window`, not `WebviewWindow`. `WebviewWindow`
+        // exposes its inner `Webview` via `AsRef`, and `Webview::window()`
+        // returns the hosting `Window`.
+        let parent = window.as_ref().window();
+        let webview = parent.add_child(builder, LogicalPosition::new(x, y), LogicalSize::new(w, h))?;
+
+        self.panes
+            .lock()
+            .unwrap()
+            .insert(id.to_string(), PaneEntry { webview, x, y, w, h });
+        Ok(())
+    }
+
+    /// Navigates an existing pane to `url`. No-op if the id is unknown or the
+    /// URL is unparseable (logged-and-ignored at the call site via the discard).
+    pub fn navigate(&self, id: &str, url: &str) {
+        let panes = self.panes.lock().unwrap();
+        if let Some(entry) = panes.get(id) {
+            if let Ok(parsed) = url.parse() {
+                let _ = entry.webview.navigate(parsed);
+            }
+        }
+    }
+
+    /// Repositions and resizes a pane, updating the cached bounds so a later
+    /// `show()` restores this rectangle rather than a stale one.
+    pub fn set_bounds(&self, id: &str, x: f64, y: f64, w: f64, h: f64) {
+        let mut panes = self.panes.lock().unwrap();
+        if let Some(entry) = panes.get_mut(id) {
+            entry.x = x;
+            entry.y = y;
+            entry.w = w;
+            entry.h = h;
+            let _ = entry.webview.set_position(LogicalPosition::new(x, y));
+            let _ = entry.webview.set_size(LogicalSize::new(w, h));
+        }
+    }
+
+    pub fn go_back(&self, id: &str) {
+        let panes = self.panes.lock().unwrap();
+        if let Some(entry) = panes.get(id) {
+            let _ = entry.webview.eval("history.back()");
+        }
+    }
+
+    pub fn go_forward(&self, id: &str) {
+        let panes = self.panes.lock().unwrap();
+        if let Some(entry) = panes.get(id) {
+            let _ = entry.webview.eval("history.forward()");
+        }
+    }
+
+    pub fn reload(&self, id: &str) {
+        let panes = self.panes.lock().unwrap();
+        if let Some(entry) = panes.get(id) {
+            let _ = entry.webview.eval("location.reload()");
+        }
+    }
+
+    /// Hides a pane by moving it offscreen and shrinking it to 1x1. The webview
+    /// stays alive (session/scroll/navigation state preserved) so `show()` is
+    /// instant and does not refetch.
+    pub fn hide(&self, id: &str) {
+        let panes = self.panes.lock().unwrap();
+        if let Some(entry) = panes.get(id) {
+            let _ = entry.webview.set_position(LogicalPosition::new(HIDDEN_X, HIDDEN_Y));
+            let _ = entry.webview.set_size(LogicalSize::new(1.0_f64, 1.0_f64));
+        }
+    }
+
+    /// Restores a previously hidden pane to its last-known bounds.
+    pub fn show(&self, id: &str) {
+        let panes = self.panes.lock().unwrap();
+        if let Some(entry) = panes.get(id) {
+            let _ = entry.webview.set_position(LogicalPosition::new(entry.x, entry.y));
+            let _ = entry.webview.set_size(LogicalSize::new(entry.w, entry.h));
+        }
+    }
+
+    /// Destroys a pane's native webview and drops its entry. Idempotent: a
+    /// missing id is a no-op.
+    pub fn destroy(&self, id: &str) {
+        let mut panes = self.panes.lock().unwrap();
+        if let Some(entry) = panes.remove(id) {
+            let _ = entry.webview.close();
+        }
+    }
+}
