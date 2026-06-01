@@ -16,21 +16,21 @@ beforeEach(() => {
 
 describe('WorkspaceSidebar', () => {
   it('renders all workspace names', () => {
-    render(<WorkspaceSidebar isCollapsed={false} onToggleCollapse={vi.fn()} onAddWorkspace={vi.fn()} onSelectWorkspace={vi.fn()} onDeleteWorkspace={vi.fn()} onOpenSettings={vi.fn()} />)
+    render(<WorkspaceSidebar isCollapsed={false} onToggleCollapse={vi.fn()} onAddWorkspace={vi.fn()} onSelectWorkspace={vi.fn()} onDeleteWorkspace={vi.fn()} onEditWorkspace={vi.fn()} onOpenSettings={vi.fn()} />)
     expect(screen.getByText('Work')).toBeInTheDocument()
     expect(screen.getByText('Side')).toBeInTheDocument()
   })
 
   it('calls onSelectWorkspace with the workspace id when clicked', () => {
     const onSelect = vi.fn()
-    render(<WorkspaceSidebar isCollapsed={false} onToggleCollapse={vi.fn()} onAddWorkspace={vi.fn()} onSelectWorkspace={onSelect} onDeleteWorkspace={vi.fn()} onOpenSettings={vi.fn()} />)
+    render(<WorkspaceSidebar isCollapsed={false} onToggleCollapse={vi.fn()} onAddWorkspace={vi.fn()} onSelectWorkspace={onSelect} onDeleteWorkspace={vi.fn()} onEditWorkspace={vi.fn()} onOpenSettings={vi.fn()} />)
     fireEvent.click(screen.getByText('Side'))
     expect(onSelect).toHaveBeenCalledWith('ws-2')
   })
 
   it('calls onAddWorkspace when the + button is clicked', () => {
     const onAdd = vi.fn()
-    render(<WorkspaceSidebar isCollapsed={false} onToggleCollapse={vi.fn()} onAddWorkspace={onAdd} onSelectWorkspace={vi.fn()} onDeleteWorkspace={vi.fn()} onOpenSettings={vi.fn()} />)
+    render(<WorkspaceSidebar isCollapsed={false} onToggleCollapse={vi.fn()} onAddWorkspace={onAdd} onSelectWorkspace={vi.fn()} onDeleteWorkspace={vi.fn()} onEditWorkspace={vi.fn()} onOpenSettings={vi.fn()} />)
     fireEvent.click(screen.getByRole('button', { name: /new workspace/i }))
     expect(onAdd).toHaveBeenCalled()
   })

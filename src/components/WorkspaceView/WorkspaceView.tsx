@@ -19,23 +19,25 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
   const setActiveTerminalId = useAppStore((s) => s.setActiveTerminalId)
   const removeTerminal = useAppStore((s) => s.removeTerminal)
 
-  const handleAddTerminal = async () => {
-    if (terminals.length >= 4) return
+  const handleAddTerminal = async (targetId?: string, direction?: 'horizontal' | 'vertical') => {
     try {
       const terminal = await invoke<Terminal>('spawn_terminal', {
         workspaceId: workspace.id,
         shell: 'zsh',
         cwd: '',
       })
-      addTerminal(workspace.id, terminal)
+      addTerminal(workspace.id, terminal, targetId, direction)
       setActiveTerminalId(terminal.id)
+      useAppStore.getState().addToast('Terminal created', 'info')
     } catch (err) {
       console.error('spawn_terminal failed:', err)
+      useAppStore.getState().addToast('Failed to spawn terminal', 'error')
     }
   }
 
   const handleCloseTerminal = (terminalId: string) => {
     removeTerminal(workspace.id, terminalId)
+    useAppStore.getState().addToast('Terminal closed', 'info')
     // If the active terminal is closed, switch focus to another one in this workspace
     if (activeTerminalId === terminalId) {
       const remaining = terminals.filter((t) => t.id !== terminalId)
@@ -52,7 +54,7 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
       <WorkspaceHeader
         workspace={workspace}
         terminals={terminals}
-        onAddTerminal={handleAddTerminal}
+        onAddTerminal={() => handleAddTerminal()}
         onEditWorkspace={() => onEditWorkspace(workspace)}
       />
       {terminals.length > 0 ? (
@@ -62,6 +64,7 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
           activeTerminalId={activeTerminalId}
           onFocus={setActiveTerminalId}
           onClose={handleCloseTerminal}
+          onSplit={(terminalId, direction) => handleAddTerminal(terminalId, direction)}
         />
       ) : (
         <div style={{
@@ -74,7 +77,7 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
             <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>Spawn a terminal to begin working</span>
           </div>
           <button 
-            onClick={handleAddTerminal}
+            onClick={() => handleAddTerminal()}
             style={{
               marginTop: 8, padding: '10px 20px', background: 'transparent',
               border: '1px dashed var(--border-inactive)', borderRadius: 8, color: 'var(--text-inactive)',

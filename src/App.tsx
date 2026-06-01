@@ -6,6 +6,8 @@ import { WorkspaceView } from './components/WorkspaceView/WorkspaceView'
 import { WorkspaceModal } from './components/WorkspaceModal/WorkspaceModal'
 import { SettingsModal } from './components/SettingsModal/SettingsModal'
 import { ConfirmModal } from './components/ConfirmModal/ConfirmModal'
+import { ContextMenu } from './components/ui/ContextMenu'
+import { ToastContainer } from './components/ui/ToastContainer'
 import { useGlobalKeybindings } from './hooks/useGlobalKeybindings'
 import { Workspace, Terminal } from './types'
 import { Group, Panel, Separator, usePanelRef } from 'react-resizable-panels'
@@ -63,11 +65,11 @@ export default function App() {
     document.documentElement.setAttribute('data-theme', settings.theme)
   }, [settings.theme])
 
-  async function spawnAndAddTerminal(workspaceId: string) {
+  async function spawnAndAddTerminal(workspaceId: string, targetId?: string, direction?: 'horizontal' | 'vertical') {
     const terminal = await invoke<Terminal>('spawn_terminal', {
       workspaceId, shell: 'zsh', cwd: '',
     })
-    addTerminal(workspaceId, terminal)
+    addTerminal(workspaceId, terminal, targetId, direction)
     setActiveTerminalId(terminal.id)
   }
 
@@ -129,6 +131,7 @@ export default function App() {
     setActiveWorkspaceId(ws.id)
     await spawnAndAddTerminal(ws.id)
     setShowCreateModal(false)
+    useAppStore.getState().addToast('Workspace created', 'success')
   }
 
   function confirmDeleteWorkspace(id: string) {
@@ -150,6 +153,7 @@ export default function App() {
     await invoke('delete_workspace', { id })
     removeWorkspace(id)
     setWorkspaceToDelete(null)
+    useAppStore.getState().addToast('Workspace deleted', 'info')
     
     // activateWorkspace is triggered via the store's removeWorkspace selector
     // which picks the next available workspace; activate it here
@@ -167,10 +171,23 @@ export default function App() {
     await invoke('update_workspace', { id: editingWorkspace.id, ...values })
     updateWorkspace({ ...editingWorkspace, ...values })
     setEditingWorkspace(null)
+    useAppStore.getState().addToast('Workspace updated', 'success')
   }
+
+  const contextMenu = useAppStore((s) => s.contextMenu)
+  const hideContextMenu = useAppStore((s) => s.hideContextMenu)
 
   return (
     <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
+      {contextMenu && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          items={contextMenu.items}
+          onClose={hideContextMenu}
+        />
+      )}
+      <ToastContainer />
       <Group orientation="horizontal" id="app-layout-v5" autoSave="app-layout-v5">
         <Panel
           id="sidebar-panel"
@@ -199,6 +216,10 @@ export default function App() {
             onAddWorkspace={() => setShowCreateModal(true)}
             onSelectWorkspace={handleSelectWorkspace}
             onDeleteWorkspace={confirmDeleteWorkspace}
+            onEditWorkspace={(id) => {
+              const ws = workspaces.find(w => w.id === id)
+              if (ws) setEditingWorkspace(ws)
+            }}
             onOpenSettings={() => setShowSettingsModal(true)}
           />
         </Panel>

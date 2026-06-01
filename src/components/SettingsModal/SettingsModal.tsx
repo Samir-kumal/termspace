@@ -21,6 +21,7 @@ export function SettingsModal({ onClose }: Props) {
 
   function handleSave() {
     updateSettings({ theme, fontSize, keybindings })
+    useAppStore.getState().addToast('Settings saved', 'success')
     onClose()
   }
 

@@ -17,6 +17,7 @@ interface Props {
   onFocus: () => void
   onToggleMaximize: () => void
   onClose: () => void
+  onSplit: (direction: 'horizontal' | 'vertical') => void
   isDragOver?: boolean
 }
 
@@ -46,7 +47,7 @@ const XTERM_THEMES = {
 
 import { useKeybindingHandler } from '../../hooks/useGlobalKeybindings'
 
-export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, scrollback, onFocus, onToggleMaximize, onClose, isDragOver }: Props) {
+export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, scrollback, onFocus, onToggleMaximize, onClose, onSplit, isDragOver }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const xtermRef = useRef<XTerm | null>(null)
   const searchAddonRef = useRef<SearchAddon | null>(null)
@@ -161,6 +162,45 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
       onClick={onFocus}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onContextMenu={(e) => {
+        // Only trigger our context menu if clicking near the top/edges, not inside the actual terminal text area
+        // to preserve native copy/paste context menus. Or we just allow it on the container.
+        // Actually xterm intercepts right clicks in its text area! So container right-click is fine.
+        e.preventDefault()
+        e.stopPropagation()
+        useAppStore.getState().showContextMenu(e.clientX, e.clientY, [
+          {
+            label: 'Clear Output',
+            icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>,
+            onClick: () => {
+              xtermRef.current?.clear()
+            }
+          },
+          { separator: true, label: '', onClick: () => {} },
+          {
+            label: 'Split Down',
+            icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="12" x2="21" y2="12"></line></svg>,
+            onClick: () => onSplit('horizontal')
+          },
+          {
+            label: 'Split Right',
+            icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="3" x2="12" y2="21"></line></svg>,
+            onClick: () => onSplit('vertical')
+          },
+          { separator: true, label: '', onClick: () => {} },
+          {
+            label: isMaximized ? 'Restore' : 'Maximize',
+            icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path></svg>,
+            onClick: onToggleMaximize
+          },
+          {
+            label: 'Close Terminal',
+            danger: true,
+            icon: <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>,
+            onClick: onClose
+          }
+        ])
+      }}
       style={{
         width: '100%', height: '100%',
         display: 'flex', flexDirection: 'column',
@@ -268,6 +308,54 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>
           </div>
+          
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onSplit('vertical')
+            }}
+            title="Split Right"
+            style={{
+              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(34, 30, 24, 0.8)', border: '1px solid var(--border-inactive)',
+              borderRadius: 6, color: 'var(--text-inactive)', cursor: 'pointer',
+              fontSize: 12, backdropFilter: 'blur(4px)', transition: 'all 0.15s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#ffffff'
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.5)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'var(--text-inactive)'
+              e.currentTarget.style.borderColor = 'var(--border-inactive)'
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="3" x2="12" y2="21"></line></svg>
+          </button>
+
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onSplit('horizontal')
+            }}
+            title="Split Down"
+            style={{
+              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              background: 'rgba(34, 30, 24, 0.8)', border: '1px solid var(--border-inactive)',
+              borderRadius: 6, color: 'var(--text-inactive)', cursor: 'pointer',
+              fontSize: 12, backdropFilter: 'blur(4px)', transition: 'all 0.15s'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.color = '#ffffff'
+              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.5)'
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.color = 'var(--text-inactive)'
+              e.currentTarget.style.borderColor = 'var(--border-inactive)'
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="12" x2="21" y2="12"></line></svg>
+          </button>
           <button
             onClick={(e) => {
               e.stopPropagation()

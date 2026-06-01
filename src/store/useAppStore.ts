@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { Workspace, Terminal } from '../types'
+import { Workspace, Terminal, LayoutNode, LayoutDirection } from '../types'
+import { addTerminalToLayout, removeTerminalFromLayout, swapTerminalsInLayout, updateSplitSizes } from '../utils/layout'
 
 export interface Keybindings {
   newTerminal: string
@@ -20,7 +21,13 @@ interface AppState {
   activeWorkspaceId: string | null
   activeTerminalId: string | null
   terminalsByWorkspace: Record<string, Terminal[]>
+  layoutsByWorkspace: Record<string, LayoutNode | null>
   settings: Settings
+  contextMenu: {
+    x: number
+    y: number
+    items: { label: string; icon?: React.ReactNode; onClick: () => void; danger?: boolean; separator?: boolean }[]
+  } | null
   
   setWorkspaces: (workspaces: Workspace[]) => void
   addWorkspace: (workspace: Workspace) => void
@@ -28,11 +35,18 @@ interface AppState {
   removeWorkspace: (id: string) => void
   setActiveWorkspaceId: (id: string | null) => void
   setTerminals: (workspaceId: string, terminals: Terminal[]) => void
-  addTerminal: (workspaceId: string, terminal: Terminal) => void
+  addTerminal: (workspaceId: string, terminal: Terminal, targetId?: string, direction?: LayoutDirection) => void
   removeTerminal: (workspaceId: string, terminalId: string) => void
   reorderTerminals: (workspaceId: string, sourceTerminalId: string, targetTerminalId: string) => void
+  updateLayoutSizes: (workspaceId: string, splitId: string, sizes: number[]) => void
   setActiveTerminalId: (id: string | null) => void
   updateSettings: (settings: Partial<Settings>) => void
+  showContextMenu: (x: number, y: number, items: NonNullable<AppState['contextMenu']>['items']) => void
+  hideContextMenu: () => void
+  
+  toasts: { id: string; message: string; type: 'success' | 'error' | 'info' }[]
+  addToast: (message: string, type?: 'success' | 'error' | 'info') => void
+  removeToast: (id: string) => void
 }
 
 export const useAppStore = create<AppState>()(
@@ -42,6 +56,9 @@ export const useAppStore = create<AppState>()(
       activeWorkspaceId: null,
       activeTerminalId: null,
       terminalsByWorkspace: {},
+      layoutsByWorkspace: {},
+      contextMenu: null,
+      toasts: [],
       settings: {
         theme: 'warm-dark',
         fontSize: 13,
@@ -75,27 +92,51 @@ export const useAppStore = create<AppState>()(
       setActiveWorkspaceId: (id) => set({ activeWorkspaceId: id }),
 
       setTerminals: (workspaceId, terminals) =>
-        set((s) => ({
-          terminalsByWorkspace: { ...s.terminalsByWorkspace, [workspaceId]: terminals },
-        })),
+        set((s) => {
+          let layout = s.layoutsByWorkspace[workspaceId] ?? null
+          if (!layout) {
+            // Build a flat layout for legacy restored terminals
+            terminals.forEach(t => {
+              layout = addTerminalToLayout(layout, t.id)
+            })
+          }
+          return {
+            terminalsByWorkspace: { ...s.terminalsByWorkspace, [workspaceId]: terminals },
+            layoutsByWorkspace: { ...s.layoutsByWorkspace, [workspaceId]: layout },
+          }
+        }),
 
-      addTerminal: (workspaceId, terminal) =>
-        set((s) => ({
-          terminalsByWorkspace: {
-            ...s.terminalsByWorkspace,
-            [workspaceId]: [...(s.terminalsByWorkspace[workspaceId] ?? []), terminal],
-          },
-        })),
+      addTerminal: (workspaceId, terminal, targetId, direction) =>
+        set((s) => {
+          const layout = s.layoutsByWorkspace[workspaceId] ?? null
+          return {
+            terminalsByWorkspace: {
+              ...s.terminalsByWorkspace,
+              [workspaceId]: [...(s.terminalsByWorkspace[workspaceId] ?? []), terminal],
+            },
+            layoutsByWorkspace: {
+              ...s.layoutsByWorkspace,
+              [workspaceId]: addTerminalToLayout(layout, terminal.id, targetId, direction),
+            }
+          }
+        }),
 
       removeTerminal: (workspaceId, terminalId) =>
-        set((s) => ({
-          terminalsByWorkspace: {
-            ...s.terminalsByWorkspace,
-            [workspaceId]: (s.terminalsByWorkspace[workspaceId] ?? []).filter(
-              (t) => t.id !== terminalId,
-            ),
-          },
-        })),
+        set((s) => {
+          const layout = s.layoutsByWorkspace[workspaceId] ?? null
+          return {
+            terminalsByWorkspace: {
+              ...s.terminalsByWorkspace,
+              [workspaceId]: (s.terminalsByWorkspace[workspaceId] ?? []).filter(
+                (t) => t.id !== terminalId,
+              ),
+            },
+            layoutsByWorkspace: {
+              ...s.layoutsByWorkspace,
+              [workspaceId]: removeTerminalFromLayout(layout, terminalId),
+            }
+          }
+        }),
 
       reorderTerminals: (workspaceId, sourceTerminalId, targetTerminalId) =>
         set((s) => {
@@ -104,15 +145,24 @@ export const useAppStore = create<AppState>()(
           const targetIndex = currentTerminals.findIndex((t) => t.id === targetTerminalId)
           if (sourceIndex === -1 || targetIndex === -1 || sourceIndex === targetIndex) return s
 
-          const newTerminals = [...currentTerminals]
-          const [removed] = newTerminals.splice(sourceIndex, 1)
-          newTerminals.splice(targetIndex, 0, removed)
-
+          const layout = s.layoutsByWorkspace[workspaceId] ?? null
+          
           return {
-            terminalsByWorkspace: {
-              ...s.terminalsByWorkspace,
-              [workspaceId]: newTerminals,
+            layoutsByWorkspace: {
+              ...s.layoutsByWorkspace,
+              [workspaceId]: swapTerminalsInLayout(layout, sourceTerminalId, targetTerminalId),
             },
+          }
+        }),
+
+      updateLayoutSizes: (workspaceId, splitId, sizes) => 
+        set((s) => {
+          const layout = s.layoutsByWorkspace[workspaceId] ?? null
+          return {
+            layoutsByWorkspace: {
+              ...s.layoutsByWorkspace,
+              [workspaceId]: updateSplitSizes(layout, splitId, sizes),
+            }
           }
         }),
 
@@ -120,11 +170,25 @@ export const useAppStore = create<AppState>()(
 
       updateSettings: (settings) =>
         set((s) => ({ settings: { ...s.settings, ...settings } })),
+        
+      showContextMenu: (x, y, items) => set({ contextMenu: { x, y, items } }),
+      hideContextMenu: () => set({ contextMenu: null }),
+
+      addToast: (message, type = 'info') => {
+        const id = Math.random().toString(36).substring(2, 9)
+        set((s) => ({ toasts: [...s.toasts, { id, message, type }] }))
+        setTimeout(() => {
+          useAppStore.getState().removeToast(id)
+        }, 3000)
+      },
+      removeToast: (id) => set((s) => ({ toasts: s.toasts.filter(t => t.id !== id) })),
     }),
     {
       name: 'termspace-storage',
-      // Only persist settings
-      partialize: (state) => ({ settings: state.settings }),
+      partialize: (state) => ({ 
+        settings: state.settings,
+        layoutsByWorkspace: state.layoutsByWorkspace
+      }),
     }
   )
 )

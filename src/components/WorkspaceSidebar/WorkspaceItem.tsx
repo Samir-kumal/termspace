@@ -8,9 +8,10 @@ interface Props {
   isCollapsed?: boolean
   onClick: () => void
   onDelete: () => void
+  onContextMenu?: (e: React.MouseEvent) => void
 }
 
-export function WorkspaceItem({ workspace, isActive, canDelete, isCollapsed, onClick, onDelete }: Props) {
+export function WorkspaceItem({ workspace, isActive, canDelete, isCollapsed, onClick, onDelete, onContextMenu }: Props) {
   const [hovered, setHovered] = useState(false)
 
   return (
@@ -19,6 +20,7 @@ export function WorkspaceItem({ workspace, isActive, canDelete, isCollapsed, onC
       title={isCollapsed ? workspace.name : undefined}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
+      onContextMenu={onContextMenu}
       style={{
         display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: 10,
         padding: isCollapsed ? '8px 0' : '8px 12px', borderRadius: 6,

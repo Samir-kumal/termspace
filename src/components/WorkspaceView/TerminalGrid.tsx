@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { motion } from 'framer-motion'
-import { Terminal as TerminalType } from '../../types'
+import { Terminal as TerminalType, LayoutNode } from '../../types'
 import { TerminalPane } from './TerminalPane'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { useAppStore } from '../../store/useAppStore'
@@ -11,6 +11,7 @@ interface Props {
   activeTerminalId: string | null
   onFocus: (terminalId: string) => void
   onClose: (terminalId: string) => void
+  onSplit: (terminalId: string, direction: 'horizontal' | 'vertical') => void
 }
 
 const CustomResizeHandle = ({ id, direction }: { id: string, direction: 'horizontal' | 'vertical' }) => {
@@ -20,6 +21,7 @@ const CustomResizeHandle = ({ id, direction }: { id: string, direction: 'horizon
       style={{
         width: direction === 'horizontal' ? '6px' : '100%',
         height: direction === 'vertical' ? '6px' : '100%',
+        cursor: direction === 'horizontal' ? 'col-resize' : 'row-resize',
       }}
     >
       <div className="resize-icon">
@@ -41,16 +43,19 @@ const CustomResizeHandle = ({ id, direction }: { id: string, direction: 'horizon
   )
 }
 
-export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus, onClose }: Props) {
+export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus, onClose, onSplit }: Props) {
   const [maximizedTerminalId, setMaximizedTerminalId] = useState<string | null>(null)
   const [dragOverTerminalId, setDragOverTerminalId] = useState<string | null>(null)
   const reorderTerminals = useAppStore((s) => s.reorderTerminals)
+  const updateLayoutSizes = useAppStore((s) => s.updateLayoutSizes)
+  const layout = useAppStore((s) => s.layoutsByWorkspace[workspaceId])
 
-  if (terminals.length === 0) return null
+  if (terminals.length === 0 || !layout) return null
 
   const isMaximized = maximizedTerminalId !== null
 
-  const renderTerminal = (t?: TerminalType) => {
+  const renderTerminal = (terminalId: string) => {
+    const t = terminals.find(t => t.id === terminalId)
     if (!t) return null
     return (
       <motion.div
@@ -90,6 +95,7 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
           scrollback={t.scrollback}
           isMaximized={maximizedTerminalId === t.id}
           onFocus={() => onFocus(t.id)}
+          onSplit={(direction) => onSplit(t.id, direction)}
           onToggleMaximize={() => setMaximizedTerminalId(maximizedTerminalId === t.id ? null : t.id)}
           onClose={() => {
             if (maximizedTerminalId === t.id) setMaximizedTerminalId(null)
@@ -100,52 +106,40 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
     )
   }
 
-  const t0 = terminals[0]
-  const t1 = terminals[1]
-  const t2 = terminals[2]
-  const t3 = terminals[3]
+  const renderLayoutNode = (node: LayoutNode): React.ReactNode => {
+    if (node.type === 'pane') {
+      return renderTerminal(node.terminalId)
+    }
 
-  // To prevent the React tree from rebuilding and unmounting TerminalPanes,
-  // we render a static 2x2 layout using stable ids.
+    if (node.type === 'split') {
+      return (
+        <Group 
+          orientation={node.direction} 
+          id={node.id}
+          // @ts-ignore: onLayout takes number[]
+          onLayout={(sizes: number[]) => {
+            updateLayoutSizes(workspaceId, node.id, sizes)
+          }}
+          style={{ width: '100%', height: '100%' }}
+        >
+          {node.children.map((child, idx) => (
+            <React.Fragment key={child.id}>
+              {idx > 0 && <CustomResizeHandle id={`handle-${node.id}-${idx}`} direction={node.direction} />}
+              <Panel id={child.id} defaultSize={node.sizes[idx] ?? (100 / node.children.length)}>
+                {renderLayoutNode(child)}
+              </Panel>
+            </React.Fragment>
+          ))}
+        </Group>
+      )
+    }
+
+    return null
+  }
+
   return (
-    <Group orientation="horizontal" id="main-group" style={{ flex: 1, padding: 12, gap: 12 }}>
-      {(t0 || t2) && (
-        <Panel id="left-col" defaultSize={t1 || t3 ? 50 : 100}>
-          <Group orientation="vertical" id="left-col-group">
-            {t0 && (
-              <Panel id="slot-0" defaultSize={t2 ? 50 : 100}>
-                {renderTerminal(t0)}
-              </Panel>
-            )}
-            {t2 && <CustomResizeHandle id="vertical-1" direction="vertical" />}
-            {t2 && (
-              <Panel id="slot-2" defaultSize={50}>
-                {renderTerminal(t2)}
-              </Panel>
-            )}
-          </Group>
-        </Panel>
-      )}
-      
-      {(t1 || t3) && <CustomResizeHandle id="horizontal-main" direction="horizontal" />}
-      
-      {(t1 || t3) && (
-        <Panel id="right-col" defaultSize={50}>
-          <Group orientation="vertical" id="right-col-group">
-            {t1 && (
-              <Panel id="slot-1" defaultSize={t3 ? 50 : 100}>
-                {renderTerminal(t1)}
-              </Panel>
-            )}
-            {t3 && <CustomResizeHandle id="vertical-2" direction="vertical" />}
-            {t3 && (
-              <Panel id="slot-3" defaultSize={50}>
-                {renderTerminal(t3)}
-              </Panel>
-            )}
-          </Group>
-        </Panel>
-      )}
-    </Group>
+    <div style={{ flex: 1, padding: 12, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
+      {renderLayoutNode(layout)}
+    </div>
   )
 }
