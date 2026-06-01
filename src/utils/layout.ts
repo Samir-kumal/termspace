@@ -86,7 +86,18 @@ export function removeTerminalFromLayout(root: LayoutNode | null, terminalId: st
       const newChildren = node.children.map(traverseAndRemove).filter(Boolean) as LayoutNode[]
       if (newChildren.length === 0) return null
       if (newChildren.length === 1) return newChildren[0] // Collapse split
-      return { ...node, children: newChildren }
+      const removedCount = node.children.length - newChildren.length
+      if (removedCount === 0) return { ...node, children: newChildren }
+      const removedIndices = new Set(
+        node.children
+          .map((child, i) => ({ child, i }))
+          .filter(({ child }) => !newChildren.includes(child))
+          .map(({ i }) => i)
+      )
+      const survivingOriginalSizes = node.sizes.filter((_, i) => !removedIndices.has(i))
+      const total = survivingOriginalSizes.reduce((a, b) => a + b, 0)
+      const normalizedSizes = survivingOriginalSizes.map(s => total > 0 ? (s / total) * 100 : 100 / newChildren.length)
+      return { ...node, children: newChildren, sizes: normalizedSizes }
     }
     return node
   }
@@ -107,6 +118,7 @@ export function swapTerminalsInLayout(root: LayoutNode | null, sourceTerminalId:
       }
       return node
     }
+    if (node.type === 'browser') return node
     if (node.type === 'split') {
       return { ...node, children: node.children.map(traverseAndSwap) }
     }
@@ -182,7 +194,18 @@ export function removeBrowserPaneFromLayout(root: LayoutNode | null, browserPane
       const newChildren = node.children.map(traverseAndRemove).filter(Boolean) as LayoutNode[]
       if (newChildren.length === 0) return null
       if (newChildren.length === 1) return newChildren[0]
-      return { ...node, children: newChildren }
+      const removedCount = node.children.length - newChildren.length
+      if (removedCount === 0) return { ...node, children: newChildren }
+      const removedIndices = new Set(
+        node.children
+          .map((child, i) => ({ child, i }))
+          .filter(({ child }) => !newChildren.includes(child))
+          .map(({ i }) => i)
+      )
+      const survivingOriginalSizes = node.sizes.filter((_, i) => !removedIndices.has(i))
+      const total = survivingOriginalSizes.reduce((a, b) => a + b, 0)
+      const normalizedSizes = survivingOriginalSizes.map(s => total > 0 ? (s / total) * 100 : 100 / newChildren.length)
+      return { ...node, children: newChildren, sizes: normalizedSizes }
     }
     return node
   }

@@ -38,4 +38,9 @@ describe('removeBrowserPaneFromLayout', () => {
     const result = removeBrowserPaneFromLayout(root, 'bp-1')
     expect(result).toEqual({ type: 'pane', id: 'p1', terminalId: 't-1' })
   })
+
+  it('returns root unchanged when browserPaneId is not found', () => {
+    const root: LayoutNode = { type: 'browser', id: 'n1', browserPaneId: 'bp-1' }
+    expect(removeBrowserPaneFromLayout(root, 'bp-NONEXISTENT')).toEqual(root)
+  })
 })
