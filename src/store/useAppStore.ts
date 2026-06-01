@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { Workspace, Terminal, LayoutNode, LayoutDirection } from '../types'
-import { addTerminalToLayout, removeTerminalFromLayout, swapTerminalsInLayout, updateSplitSizes } from '../utils/layout'
+import { Workspace, Terminal, BrowserPane, LayoutNode, LayoutDirection } from '../types'
+import { addTerminalToLayout, removeTerminalFromLayout, swapTerminalsInLayout, updateSplitSizes, addBrowserPaneToLayout, removeBrowserPaneFromLayout } from '../utils/layout'
 
 export interface Keybindings {
   newTerminal: string
@@ -22,6 +22,7 @@ interface AppState {
   activeWorkspaceId: string | null
   activeTerminalId: string | null
   terminalsByWorkspace: Record<string, Terminal[]>
+  browserPanesByWorkspace: Record<string, BrowserPane[]>
   layoutsByWorkspace: Record<string, LayoutNode | null>
   settings: Settings
   contextMenu: {
@@ -38,6 +39,9 @@ interface AppState {
   setTerminals: (workspaceId: string, terminals: Terminal[]) => void
   addTerminal: (workspaceId: string, terminal: Terminal, targetId?: string, direction?: LayoutDirection) => void
   removeTerminal: (workspaceId: string, terminalId: string) => void
+  setBrowserPanes: (workspaceId: string, panes: BrowserPane[]) => void
+  addBrowserPane: (workspaceId: string, pane: BrowserPane, targetId?: string, direction?: LayoutDirection) => void
+  removeBrowserPane: (workspaceId: string, browserPaneId: string) => void
   reorderTerminals: (workspaceId: string, sourceTerminalId: string, targetTerminalId: string) => void
   updateLayoutSizes: (workspaceId: string, splitId: string, sizes: number[]) => void
   setActiveTerminalId: (id: string | null) => void
@@ -60,6 +64,7 @@ export const useAppStore = create<AppState>()(
       activeWorkspaceId: null,
       activeTerminalId: null,
       terminalsByWorkspace: {},
+      browserPanesByWorkspace: {},
       layoutsByWorkspace: {},
       contextMenu: null,
       toasts: [],
@@ -116,6 +121,10 @@ export const useAppStore = create<AppState>()(
               if (node.type === 'pane') {
                 return validIds.has(node.terminalId) ? node : null
               }
+              if (node.type === 'browser') {
+                // browser pane IDs are validated separately when browser panes load
+                return node
+              }
               if (node.type === 'split') {
                 const newChildren = node.children.map(cleanLayout).filter(Boolean) as LayoutNode[]
                 if (newChildren.length === 0) return null
@@ -162,6 +171,61 @@ export const useAppStore = create<AppState>()(
               ...s.layoutsByWorkspace,
               [workspaceId]: removeTerminalFromLayout(layout, terminalId),
             }
+          }
+        }),
+
+      setBrowserPanes: (workspaceId, panes) =>
+        set((s) => {
+          let layout = s.layoutsByWorkspace[workspaceId] ?? null
+          if (panes.length > 0) {
+            const existingBrowserIds = new Set<string>()
+            const collectBrowserIds = (node: LayoutNode | null) => {
+              if (!node) return
+              if (node.type === 'browser') existingBrowserIds.add(node.browserPaneId)
+              if (node.type === 'split') node.children.forEach(collectBrowserIds)
+            }
+            collectBrowserIds(layout)
+            for (const pane of panes) {
+              if (!existingBrowserIds.has(pane.id)) {
+                layout = addBrowserPaneToLayout(layout, pane.id)
+              }
+            }
+          }
+          return {
+            browserPanesByWorkspace: { ...s.browserPanesByWorkspace, [workspaceId]: panes },
+            layoutsByWorkspace: { ...s.layoutsByWorkspace, [workspaceId]: layout },
+          }
+        }),
+
+      addBrowserPane: (workspaceId, pane, targetId, direction) =>
+        set((s) => {
+          const layout = s.layoutsByWorkspace[workspaceId] ?? null
+          return {
+            browserPanesByWorkspace: {
+              ...s.browserPanesByWorkspace,
+              [workspaceId]: [...(s.browserPanesByWorkspace[workspaceId] ?? []), pane],
+            },
+            layoutsByWorkspace: {
+              ...s.layoutsByWorkspace,
+              [workspaceId]: addBrowserPaneToLayout(layout, pane.id, targetId, direction),
+            },
+          }
+        }),
+
+      removeBrowserPane: (workspaceId, browserPaneId) =>
+        set((s) => {
+          const layout = s.layoutsByWorkspace[workspaceId] ?? null
+          return {
+            browserPanesByWorkspace: {
+              ...s.browserPanesByWorkspace,
+              [workspaceId]: (s.browserPanesByWorkspace[workspaceId] ?? []).filter(
+                (p) => p.id !== browserPaneId,
+              ),
+            },
+            layoutsByWorkspace: {
+              ...s.layoutsByWorkspace,
+              [workspaceId]: removeBrowserPaneFromLayout(layout, browserPaneId),
+            },
           }
         }),
 
