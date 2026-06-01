@@ -52,6 +52,7 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
   const reorderTerminals = useAppStore((s) => s.reorderTerminals)
   const updateLayoutSizes = useAppStore((s) => s.updateLayoutSizes)
   const layout = useAppStore((s) => s.layoutsByWorkspace[workspaceId])
+  const browserPanes = useAppStore((s) => s.browserPanesByWorkspace[workspaceId] ?? [])
 
   if (terminals.length === 0 || !layout) return null
 
@@ -109,15 +110,16 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
     )
   }
 
-  const browserPanes = useAppStore((s) => s.browserPanesByWorkspace[workspaceId] ?? [])
-
   const renderBrowserPane = (browserPaneId: string) => {
     const pane = browserPanes.find(p => p.id === browserPaneId)
     if (!pane) return null
     return (
       <div
         key={pane.id}
-        style={{ display: 'flex', width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}
+        style={{
+          display: isMaximized && maximizedTerminalId !== pane.id ? 'none' : 'flex',
+          width: '100%', height: '100%', minWidth: 0, minHeight: 0,
+        }}
       >
         <BrowserPane
           browserPaneId={pane.id}
