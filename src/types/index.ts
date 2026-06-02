@@ -5,6 +5,7 @@ export interface Workspace {
   color: string
   position: number
   createdAt: number
+  notificationCount?: number
 }
 
 export interface Terminal {

@@ -58,11 +58,11 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
     }
   }
 
-  const handleAddBrowserPane = async (targetId?: string, direction?: 'horizontal' | 'vertical') => {
+  const handleAddBrowserPane = async (targetId?: string, direction?: 'horizontal' | 'vertical', initialUrl?: string) => {
     try {
       const pane = await invoke<BrowserPaneType>('create_browser_pane', {
         workspaceId: workspace.id,
-        url: 'https://google.com',
+        url: initialUrl || 'https://google.com',
         x: -10000, y: -10000, w: 800, h: 600,
       })
       addBrowserPane(workspace.id, pane, targetId, direction)
@@ -101,7 +101,7 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
         onSelectTerminal={setActiveTerminalId}
         onCloseTerminal={handleCloseTerminal}
       />
-      {terminals.length > 0 ? (
+      {terminals.length > 0 || browserPanes.length > 0 ? (
         <div style={{ position: 'relative', flex: 1, display: 'flex', flexDirection: 'column' }}>
           <TerminalGrid
             workspaceId={workspace.id}
@@ -111,7 +111,7 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
             onClose={handleCloseTerminal}
             onSplit={(terminalId, direction) => handleAddTerminal(terminalId, direction)}
             onCloseBrowserPane={handleCloseBrowserPane}
-            onSplitBrowserPane={(browserPaneId, direction) => handleAddBrowserPane(browserPaneId, direction)}
+            onSplitBrowserPane={(browserPaneId, direction, initialUrl) => handleAddBrowserPane(browserPaneId, direction, initialUrl)}
           />
         </div>
       ) : (
@@ -122,28 +122,50 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
           <div style={{ fontSize: 48, opacity: 0.5 }}>{workspace.emoji}</div>
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
             <span style={{ color: 'var(--text-inactive)', fontSize: 16, fontWeight: 500, letterSpacing: 0.2 }}>Workspace is empty</span>
-            <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>Spawn a terminal to begin working</span>
+            <span style={{ color: 'var(--text-dim)', fontSize: 13 }}>Spawn a terminal or browser to begin working</span>
           </div>
-          <button 
-            onClick={() => handleAddTerminal()}
-            style={{
-              marginTop: 8, padding: '10px 20px', background: 'transparent',
-              border: '1px dashed var(--border-inactive)', borderRadius: 8, color: 'var(--text-inactive)',
-              fontSize: 14, fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = 'var(--text-active)'
-              e.currentTarget.style.borderColor = 'var(--text-inactive)'
-              e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--text-inactive)'
-              e.currentTarget.style.borderColor = 'var(--border-inactive)'
-              e.currentTarget.style.background = 'transparent'
-            }}
-          >
-            + New Terminal
-          </button>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button 
+              onClick={() => handleAddTerminal()}
+              style={{
+                marginTop: 8, padding: '10px 20px', background: 'transparent',
+                border: '1px dashed var(--border-inactive)', borderRadius: 8, color: 'var(--text-inactive)',
+                fontSize: 14, fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--text-active)'
+                e.currentTarget.style.borderColor = 'var(--text-inactive)'
+                e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--text-inactive)'
+                e.currentTarget.style.borderColor = 'var(--border-inactive)'
+                e.currentTarget.style.background = 'transparent'
+              }}
+            >
+              + New Terminal
+            </button>
+            <button 
+              onClick={() => handleAddBrowserPane()}
+              style={{
+                marginTop: 8, padding: '10px 20px', background: 'transparent',
+                border: '1px dashed var(--border-inactive)', borderRadius: 8, color: 'var(--text-inactive)',
+                fontSize: 14, fontWeight: 500, cursor: 'pointer', transition: 'all 0.2s'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--text-active)'
+                e.currentTarget.style.borderColor = 'var(--text-inactive)'
+                e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--text-inactive)'
+                e.currentTarget.style.borderColor = 'var(--border-inactive)'
+                e.currentTarget.style.background = 'transparent'
+              }}
+            >
+              🌐 New Browser
+            </button>
+          </div>
         </div>
       )}
     </div>

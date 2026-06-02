@@ -15,7 +15,7 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use tauri::{Emitter, LogicalPosition, LogicalSize, WebviewBuilder, WebviewUrl, WebviewWindow};
+use tauri::{Emitter, LogicalPosition, LogicalSize, WebviewBuilder, WebviewUrl, WebviewWindow, Manager};
 
 /// Offscreen coordinates used to "hide" a pane without destroying it. Keeping
 /// the webview alive preserves its navigation/session state, so showing it
@@ -102,15 +102,24 @@ impl BrowserPaneManager {
             .parse()
             .unwrap_or_else(|_| "https://google.com".parse().expect("https://google.com is a valid URL"));
 
+        let nav_app_handle = app_handle.clone();
+        let nav_id = id_owned.clone();
+        
+        let popup_app_handle = app_handle.clone();
+        let popup_id = id_owned.clone();
+
+        let data_dir = app_handle.path().app_data_dir().unwrap_or_else(|_| std::path::PathBuf::from("/tmp")).join("browser_profile");
+
         let builder = WebviewBuilder::new(format!("browser-pane-{}", id), WebviewUrl::External(target_url))
+            .data_directory(data_dir)
             .on_navigation(move |nav_url| {
                 println!(">>> BROWSER: Navigation requested to: {}", nav_url);
                 // Returning `true` allows the navigation to proceed. We only
                 // observe it to keep the frontend's URL state in sync.
-                let _ = app_handle.emit(
+                let _ = nav_app_handle.emit(
                     "browser-pane-url-changed",
                     serde_json::json!({
-                        "id": id_owned,
+                        "id": nav_id,
                         "url": nav_url.to_string(),
                     }),
                 );
@@ -118,6 +127,21 @@ impl BrowserPaneManager {
             })
             .on_page_load(|_webview, payload| {
                 println!(">>> BROWSER: Page load event: {:?}", payload.url());
+            })
+            .on_new_window(move |nav_url, _features| {
+                println!(">>> BROWSER: Popup requested to: {}", nav_url);
+                let _ = popup_app_handle.emit(
+                    "browser-pane-popup-requested",
+                    serde_json::json!({
+                        "id": popup_id,
+                        "url": nav_url.to_string(),
+                    }),
+                );
+                tauri::webview::NewWindowResponse::Deny
+            })
+            .on_download(move |_url, _event| {
+                println!(">>> BROWSER: Download started");
+                true // allow download, will trigger default OS save dialog (or automatic download to ~/Downloads)
             });
 
         // `add_child` lives on `Window`, not `WebviewWindow`. `WebviewWindow`

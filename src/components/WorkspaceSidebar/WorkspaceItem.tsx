@@ -33,17 +33,36 @@ export function WorkspaceItem({ workspace, isActive, canDelete, isCollapsed, ter
         position: 'relative',
       }}
     >
-      <span style={{ fontSize: 16, flexShrink: 0 }}>{workspace.emoji}</span>
+      <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+        <span style={{ fontSize: 16, flexShrink: 0 }}>{workspace.emoji}</span>
+        {workspace.notificationCount && workspace.notificationCount > 0 && isCollapsed && (
+          <span style={{
+            position: 'absolute', top: -6, right: -8, background: '#ef4444', color: 'white',
+            fontSize: 9, fontWeight: 'bold', padding: '1px 4px', borderRadius: 10,
+            lineHeight: 1, minWidth: 14, textAlign: 'center', boxShadow: '0 0 0 2px var(--bg-sidebar)'
+          }}>
+            {workspace.notificationCount > 99 ? '99+' : workspace.notificationCount}
+          </span>
+        )}
+      </div>
       {!isCollapsed && (
         <div style={{ display: 'flex', alignItems: 'center', flex: 1, overflow: 'hidden', gap: 6 }}>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {workspace.name}
           </span>
-          {terminalCount > 0 && (
+          {workspace.notificationCount && workspace.notificationCount > 0 && (
+            <span style={{
+              background: '#ef4444', color: 'white', fontSize: 10, fontWeight: 'bold',
+              padding: '2px 6px', borderRadius: 10, lineHeight: 1, marginLeft: 'auto'
+            }}>
+              {workspace.notificationCount > 99 ? '99+' : workspace.notificationCount}
+            </span>
+          )}
+          {(!workspace.notificationCount || workspace.notificationCount === 0) && terminalCount > 0 && (
             <span style={{ 
               fontSize: 10, background: isActive ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.06)', 
               color: isActive ? 'var(--text-active)' : 'var(--text-dim)',
-              padding: '2px 6px', borderRadius: 10, fontWeight: 500, lineHeight: 1
+              padding: '2px 6px', borderRadius: 10, fontWeight: 500, lineHeight: 1, marginLeft: 'auto'
             }}>
               {terminalCount}
             </span>

@@ -94,3 +94,8 @@ html, body, #root {
 [data-panel-group]:not(:has([data-panel-resize-handle-state="drag"])) > [data-panel] {
   transition: flex 0.4s cubic-bezier(0.2, 0.8, 0.2, 1) !important;
 }
+
+.animating-panels > [data-panel] {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+

@@ -16,7 +16,7 @@ interface Props {
   onClose: (terminalId: string) => void
   onSplit: (terminalId: string, direction: 'horizontal' | 'vertical') => void
   onCloseBrowserPane: (browserPaneId: string) => void
-  onSplitBrowserPane: (browserPaneId: string, direction: 'horizontal' | 'vertical') => void
+  onSplitBrowserPane: (browserPaneId: string, direction: 'horizontal' | 'vertical', initialUrl?: string) => void
 }
 
 const CustomResizeHandle = ({ id, direction }: { id: string, direction: 'horizontal' | 'vertical' }) => {
@@ -56,7 +56,7 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
   const layout = useAppStore((s) => s.layoutsByWorkspace[workspaceId])
   const browserPanes = useAppStore((s) => s.browserPanesByWorkspace[workspaceId] ?? EMPTY_BROWSER_PANES)
 
-  if (terminals.length === 0 || !layout) return null
+  if ((terminals.length === 0 && browserPanes.length === 0) || !layout) return null
 
   const isMaximized = maximizedTerminalId !== null
 
@@ -144,7 +144,7 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
             if (maximizedTerminalId === pane.id) setMaximizedTerminalId(null)
             onCloseBrowserPane(pane.id)
           }}
-          onSplit={(direction) => onSplitBrowserPane(pane.id, direction)}
+          onSplit={(direction, initialUrl) => onSplitBrowserPane(pane.id, direction, initialUrl)}
           onToggleMaximize={() => setMaximizedTerminalId(maximizedTerminalId === pane.id ? null : pane.id)}
         />
       </div>

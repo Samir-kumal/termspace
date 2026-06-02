@@ -13,6 +13,7 @@ import { useGlobalKeybindings } from './hooks/useGlobalKeybindings'
 import { Workspace, Terminal } from './types'
 import { Group, Panel, Separator, usePanelRef } from 'react-resizable-panels'
 import { AnimatePresence } from 'framer-motion'
+import { flushSync } from 'react-dom'
 
 const SidebarResizeHandle = () => (
   <Separator
@@ -56,6 +57,7 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [bootstrapError, setBootstrapError] = useState<string | null>(null)
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isAnimatingSidebar, setIsAnimatingSidebar] = useState(false)
 
   const sidebarRef = usePanelRef()
   const settings = useAppStore((s) => s.settings)
@@ -260,7 +262,12 @@ export default function App() {
           }
         }}
       />
-      <Group orientation="horizontal" id="app-layout-v5" autoSave="app-layout-v5">
+      <Group 
+        orientation="horizontal" 
+        id="app-layout-v5" 
+        autoSave="app-layout-v5"
+        className={isAnimatingSidebar ? "animating-panels" : ""}
+      >
         <Panel
           id="sidebar-panel"
           panelRef={sidebarRef}
@@ -281,8 +288,12 @@ export default function App() {
             onToggleCollapse={() => {
               const panel = sidebarRef.current
               if (panel) {
+                flushSync(() => {
+                  setIsAnimatingSidebar(true)
+                })
                 if (panel.isCollapsed()) panel.expand()
                 else panel.collapse()
+                setTimeout(() => setIsAnimatingSidebar(false), 300)
               }
             }}
             onAddWorkspace={() => setShowCreateModal(true)}

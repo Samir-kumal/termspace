@@ -65,6 +65,8 @@ pub fn run() {
             commands::browser_go_forward,
             commands::browser_reload,
             commands::get_browser_panes,
+            commands::spawn_ephemeral_browser_pane,
+            commands::destroy_ephemeral_browser_pane,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -308,11 +308,11 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
         <div
           style={{
             position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 10,
-            display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px',
+            display: 'flex', alignItems: 'center', gap: 10, padding: '6px 16px',
             background: 'var(--bg-item)',
             border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border-inactive)'}`,
-            borderRadius: 20,
-            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+            borderRadius: 24,
+            boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
             opacity: isHovered || isActive ? 1 : 0.6,
             transition: 'opacity 0.2s, border-color 0.2s'
           }}
@@ -329,7 +329,7 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
               onBlur={handleTitleSave}
               style={{
                 background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-active)',
-                fontSize: 12, width: 80, textAlign: 'center', fontFamily: 'inherit'
+                fontSize: 14, width: 80, textAlign: 'center', fontFamily: 'inherit'
               }}
             />
           ) : (
@@ -339,8 +339,8 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
                 setIsEditingTitle(true)
               }}
               style={{
-                fontSize: 12, color: isActive ? 'var(--text-active)' : 'var(--text-inactive)',
-                cursor: 'text', userSelect: 'none', fontWeight: 500
+                fontSize: 14, color: isActive ? 'var(--text-active)' : 'var(--text-inactive)',
+                cursor: 'text', userSelect: 'none', fontWeight: 600
               }}
             >
               {terminal?.title || 'Terminal'}
@@ -359,32 +359,32 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
             onMouseEnter={e => e.currentTarget.style.color = 'var(--text-active)'}
             onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>
           </div>
 
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 4 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 6 }}>
             <button
-              onClick={(e) => { e.stopPropagation(); onSplit('vertical') }}
+              onClick={(e) => { e.stopPropagation(); onSplit('horizontal') }}
               title="Split Right"
               style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', display: 'flex' }}
               onMouseEnter={e => e.currentTarget.style.color = 'var(--text-active)'}
               onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="3" x2="12" y2="21"></line></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="3" x2="12" y2="21"></line></svg>
             </button>
             <button
-              onClick={(e) => { e.stopPropagation(); onSplit('horizontal') }}
+              onClick={(e) => { e.stopPropagation(); onSplit('vertical') }}
               title="Split Down"
               style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', display: 'flex' }}
               onMouseEnter={e => e.currentTarget.style.color = 'var(--text-active)'}
               onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="12" x2="21" y2="12"></line></svg>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="12" x2="21" y2="12"></line></svg>
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); onToggleMaximize() }}
               title={isMaximized ? "Restore" : "Maximize"}
-              style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12, lineHeight: 1 }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}
               onMouseEnter={e => e.currentTarget.style.color = 'var(--accent)'}
               onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}
             >
@@ -393,7 +393,7 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
             <button
               onClick={(e) => { e.stopPropagation(); onClose() }}
               title="Close"
-              style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 14, lineHeight: 1, paddingBottom: 2 }}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 16, lineHeight: 1, paddingBottom: 2 }}
               onMouseEnter={e => e.currentTarget.style.color = '#e07b7b'}
               onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}
             >

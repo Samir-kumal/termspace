@@ -209,6 +209,32 @@ pub fn create_browser_pane(
 }
 
 #[tauri::command]
+pub fn spawn_ephemeral_browser_pane(
+    browser: State<BrowserPaneManager>,
+    app: tauri::AppHandle,
+    id: String,
+    url: String,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+) -> Result<(), String> {
+    let window = app.get_webview_window("main").ok_or("no main window")?;
+    browser
+        .create(&window, &app, &id, &url, x, y, w, h)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn destroy_ephemeral_browser_pane(
+    browser: State<BrowserPaneManager>,
+    id: String,
+) -> Result<(), String> {
+    browser.destroy(&id);
+    Ok(())
+}
+
+#[tauri::command]
 pub fn respawn_browser_pane(
     browser: State<BrowserPaneManager>,
     app: tauri::AppHandle,
