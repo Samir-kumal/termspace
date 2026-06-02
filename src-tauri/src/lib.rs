@@ -47,6 +47,7 @@ pub fn run() {
             commands::spawn_terminal,
             commands::respawn_terminal,
             commands::start_terminal,
+            commands::rename_terminal,
             commands::close_terminal,
             commands::write_pty,
             commands::resize_pty,

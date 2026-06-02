@@ -13,7 +13,7 @@ interface Props {
   onToggleMaximize: () => void
 }
 
-const HEADER_HEIGHT = 36
+const HEADER_HEIGHT = 44
 
 export function BrowserPane({
   browserPaneId, initialUrl, isActive, isMaximized: _isMaximized,
@@ -32,15 +32,16 @@ export function BrowserPane({
     const rect = containerRef.current.getBoundingClientRect()
     if (rect.width < 1 || rect.height <= HEADER_HEIGHT) return
     
-    // Tauri's Webview::set_position uses coordinates relative to the window frame (including titlebar).
-    // React's getBoundingClientRect is relative to the client area (excluding titlebar).
-    // We add the titlebar height (outerHeight - innerHeight) to bridge the gap.
-    const titlebarHeight = window.outerHeight - window.innerHeight
-    
+    // Tauri v2 on macOS positions the Webview relative to the *window* frame (including the title bar).
+    // React's getBoundingClientRect is relative to the *client area*.
+    // A standard macOS title bar is 28 logical pixels tall. We must add this offset manually
+    // because window.outerHeight - innerHeight is unreliable in webkit.
+    const MACOS_TITLEBAR_HEIGHT = 28;
+
     invoke('resize_browser_pane', {
       id: browserPaneId,
       x: rect.left,
-      y: rect.top + HEADER_HEIGHT + titlebarHeight,
+      y: rect.top + HEADER_HEIGHT + MACOS_TITLEBAR_HEIGHT,
       w: rect.width,
       h: rect.height - HEADER_HEIGHT,
     }).catch(() => {}) // non-fatal, next resize will retry
@@ -97,69 +98,74 @@ export function BrowserPane({
       style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}
       onClick={onFocus}
     >
-      {/* Header bar — real React HTML */}
+      {/* Traditional Browser Header */}
       <div style={{
-        height: 36, display: 'flex', alignItems: 'center', padding: '0 8px', gap: 6,
-        background: 'var(--bg-panel, #1e1e1e)', borderBottom: `1px solid ${borderColor}`,
+        height: 44, display: 'flex', alignItems: 'center', padding: '0 12px', gap: 8,
+        background: '#202124', borderBottom: `1px solid ${borderColor}`,
         flexShrink: 0,
       }}>
-        {/* Back */}
-        <button
-          onClick={(e) => { e.stopPropagation(); invoke('browser_go_back', { id: browserPaneId }) }}
-          style={btnStyle}
-          title="Back"
-        >&#8592;</button>
-        {/* Forward */}
-        <button
-          onClick={(e) => { e.stopPropagation(); invoke('browser_go_forward', { id: browserPaneId }) }}
-          style={btnStyle}
-          title="Forward"
-        >&#8594;</button>
-        {/* Reload */}
-        <button
-          onClick={(e) => { e.stopPropagation(); invoke('browser_reload', { id: browserPaneId }) }}
-          style={btnStyle}
-          title="Reload"
-        >&#8635;</button>
+        {/* Navigation Buttons */}
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button onClick={(e) => { e.stopPropagation(); invoke('browser_go_back', { id: browserPaneId }) }} style={navBtnStyle} title="Back">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); invoke('browser_go_forward', { id: browserPaneId }) }} style={navBtnStyle} title="Forward">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); invoke('browser_reload', { id: browserPaneId }) }} style={navBtnStyle} title="Reload">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+          </button>
+        </div>
 
-        {/* URL bar */}
-        {isEditingUrl ? (
-          <input
-            autoFocus
-            value={inputUrl}
-            onChange={(e) => setInputUrl(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter') handleNavigate(inputUrl)
-              if (e.key === 'Escape') { setIsEditingUrl(false); setInputUrl(url) }
-            }}
-            onBlur={() => { setIsEditingUrl(false); setInputUrl(url) }}
-            style={{
-              flex: 1, height: 22, background: '#2a2a2a', border: '1px solid #4a7aff',
-              borderRadius: 4, color: '#ccc', fontSize: 11, fontFamily: 'monospace',
-              padding: '0 8px', outline: 'none',
-            }}
-          />
-        ) : (
-          <div
-            onClick={(e) => { e.stopPropagation(); setIsEditingUrl(true) }}
-            style={{
-              flex: 1, height: 22, background: '#2a2a2a', border: '1px solid #333',
-              borderRadius: 4, display: 'flex', alignItems: 'center', padding: '0 8px',
-              gap: 4, cursor: 'text',
-            }}
-          >
-            <span style={{ fontSize: 10, color: '#888' }}>&#127760;</span>
-            <span style={{ fontSize: 11, color: '#bbb', fontFamily: 'monospace', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {url || 'about:blank'}
-            </span>
-          </div>
-        )}
+        {/* Address Bar */}
+        <div style={{
+          flex: 1, height: 28, background: '#171717', borderRadius: 14,
+          display: 'flex', alignItems: 'center', padding: '0 16px', gap: 8,
+          border: '1px solid #333', minWidth: 0,
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" strokeWidth="2" style={{ flexShrink: 0 }}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+          {isEditingUrl ? (
+            <input
+              autoFocus
+              value={inputUrl}
+              onChange={(e) => setInputUrl(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleNavigate(inputUrl)
+                if (e.key === 'Escape') { setIsEditingUrl(false); setInputUrl(url) }
+              }}
+              onBlur={() => { setIsEditingUrl(false); setInputUrl(url) }}
+              style={{
+                flex: 1, background: 'transparent', border: 'none',
+                color: '#e8eaed', fontSize: 13, outline: 'none', minWidth: 0,
+              }}
+            />
+          ) : (
+            <div
+              onClick={(e) => { e.stopPropagation(); setIsEditingUrl(true) }}
+              style={{ flex: 1, cursor: 'text', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+            >
+              <span style={{ fontSize: 13, color: '#e8eaed' }}>
+                {url || 'https://google.com'}
+              </span>
+            </div>
+          )}
+        </div>
 
-        {/* Action buttons */}
-        <button onClick={(e) => { e.stopPropagation(); onSplit('horizontal') }} style={btnStyle} title="Split right">&#8863;</button>
-        <button onClick={(e) => { e.stopPropagation(); onSplit('vertical') }} style={btnStyle} title="Split down">&#8862;</button>
-        <button onClick={(e) => { e.stopPropagation(); onToggleMaximize() }} style={btnStyle} title="Maximize">&#10562;</button>
-        <button onClick={(e) => { e.stopPropagation(); onClose() }} style={{ ...btnStyle, color: '#e06c75' }} title="Close">&#x2715;</button>
+        {/* Action Buttons */}
+        <div style={{ display: 'flex', gap: 4 }}>
+          <button onClick={(e) => { e.stopPropagation(); onSplit('horizontal') }} style={navBtnStyle} title="Split right">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M12 3v18"/></svg>
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); onSplit('vertical') }} style={navBtnStyle} title="Split down">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M3 12h18"/></svg>
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); onToggleMaximize() }} style={navBtnStyle} title="Maximize">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M8 3H5a2 2 0 00-2 2v3M21 8V5a2 2 0 00-2-2h-3M3 16v3a2 2 0 002 2h3M16 21h3a2 2 0 002-2v-3"/></svg>
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); onClose() }} style={{ ...navBtnStyle, color: '#e06c75' }} title="Close">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 6L6 18M6 6l12 12"/></svg>
+          </button>
+        </div>
       </div>
 
       {/* Transparent hole — native webview floats here, positioned via containerRef + HEADER_HEIGHT offset */}
@@ -168,8 +174,8 @@ export function BrowserPane({
   )
 }
 
-const btnStyle: React.CSSProperties = {
-  width: 22, height: 22, background: 'transparent', border: '1px solid #333',
-  borderRadius: 4, color: '#999', fontSize: 12, cursor: 'pointer',
+const navBtnStyle: React.CSSProperties = {
+  width: 28, height: 28, background: 'transparent', border: 'none',
+  borderRadius: 6, color: '#9aa0a6', cursor: 'pointer',
   display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
 }

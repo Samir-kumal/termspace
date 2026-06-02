@@ -10,6 +10,7 @@ export interface Workspace {
 export interface Terminal {
   id: string
   workspaceId: string
+  title?: string
   shell: string
   cwd: string
   position: number

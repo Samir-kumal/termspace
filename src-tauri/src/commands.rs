@@ -154,6 +154,11 @@ pub fn start_terminal(
 }
 
 #[tauri::command]
+pub fn rename_terminal(db: State<DbState>, id: String, title: String) -> Result<(), String> {
+    db::rename_terminal(&db.0.lock().unwrap(), &id, &title).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn close_terminal(
     db: State<DbState>,
     pty: State<PtyManager>,

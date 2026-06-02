@@ -62,7 +62,7 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
     try {
       const pane = await invoke<BrowserPaneType>('create_browser_pane', {
         workspaceId: workspace.id,
-        url: 'about:blank',
+        url: 'https://google.com',
         x: -10000, y: -10000, w: 800, h: 600,
       })
       addBrowserPane(workspace.id, pane, targetId, direction)

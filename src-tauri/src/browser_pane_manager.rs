@@ -97,14 +97,14 @@ impl BrowserPaneManager {
         let id_owned = id.to_string();
 
         // Parse defensively: a malformed/empty URL must not panic the command
-        // thread. Fall back to about:blank, mirroring browser behavior.
+        // thread. Fall back to https://google.com, mirroring browser behavior.
         let target_url = url
             .parse()
-            .unwrap_or_else(|_| "about:blank".parse().expect("about:blank is a valid URL"));
+            .unwrap_or_else(|_| "https://google.com".parse().expect("https://google.com is a valid URL"));
 
         let builder = WebviewBuilder::new(format!("browser-pane-{}", id), WebviewUrl::External(target_url))
-            .transparent(true)
             .on_navigation(move |nav_url| {
+                println!(">>> BROWSER: Navigation requested to: {}", nav_url);
                 // Returning `true` allows the navigation to proceed. We only
                 // observe it to keep the frontend's URL state in sync.
                 let _ = app_handle.emit(
@@ -115,6 +115,9 @@ impl BrowserPaneManager {
                     }),
                 );
                 true
+            })
+            .on_page_load(|_webview, payload| {
+                println!(">>> BROWSER: Page load event: {:?}", payload.url());
             });
 
         // `add_child` lives on `Window`, not `WebviewWindow`. `WebviewWindow`
@@ -147,6 +150,7 @@ impl BrowserPaneManager {
     /// Repositions and resizes a pane, updating the cached bounds so a later
     /// `show()` restores this rectangle rather than a stale one.
     pub fn set_bounds(&self, id: &str, x: f64, y: f64, w: f64, h: f64) {
+        println!(">>> BROWSER: set_bounds for '{}' -> x:{}, y:{}, w:{}, h:{}", id, x, y, w, h);
         // Drop non-positive rectangles (transient measurement races); pushing a
         // zero/negative size to the runtime is undefined and could clobber a
         // valid cached rect.

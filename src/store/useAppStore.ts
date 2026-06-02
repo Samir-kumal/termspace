@@ -39,6 +39,7 @@ interface AppState {
   setTerminals: (workspaceId: string, terminals: Terminal[]) => void
   addTerminal: (workspaceId: string, terminal: Terminal, targetId?: string, direction?: LayoutDirection) => void
   removeTerminal: (workspaceId: string, terminalId: string) => void
+  renameTerminal: (workspaceId: string, terminalId: string, title: string) => void
   setBrowserPanes: (workspaceId: string, panes: BrowserPane[]) => void
   addBrowserPane: (workspaceId: string, pane: BrowserPane, targetId?: string, direction?: LayoutDirection) => void
   removeBrowserPane: (workspaceId: string, browserPaneId: string) => void
@@ -170,6 +171,18 @@ export const useAppStore = create<AppState>()(
               ...s.layoutsByWorkspace,
               [workspaceId]: removeTerminalFromLayout(layout, terminalId),
             }
+          }
+        }),
+
+      renameTerminal: (workspaceId, terminalId, title) =>
+        set((s) => {
+          return {
+            terminalsByWorkspace: {
+              ...s.terminalsByWorkspace,
+              [workspaceId]: (s.terminalsByWorkspace[workspaceId] ?? []).map((t) =>
+                t.id === terminalId ? { ...t, title } : t
+              ),
+            },
           }
         }),
 

@@ -19,6 +19,7 @@ pub struct Workspace {
 pub struct Terminal {
     pub id: String,
     pub workspace_id: String,
+    pub title: Option<String>,
     pub shell: String,
     pub cwd: String,
     pub position: i64,
@@ -58,6 +59,7 @@ pub fn init_db(path: &Path) -> Result<Connection> {
         CREATE TABLE IF NOT EXISTS terminals (
             id           TEXT PRIMARY KEY,
             workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+            title        TEXT,
             shell        TEXT NOT NULL DEFAULT 'zsh',
             cwd          TEXT NOT NULL,
             position     INTEGER NOT NULL,
@@ -73,7 +75,7 @@ pub fn init_db(path: &Path) -> Result<Connection> {
         CREATE TABLE IF NOT EXISTS browser_panes (
             id           TEXT PRIMARY KEY,
             workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-            url          TEXT NOT NULL DEFAULT 'about:blank',
+            url          TEXT NOT NULL DEFAULT 'https://google.com',
             position     INTEGER NOT NULL DEFAULT 0,
             created_at   INTEGER NOT NULL
         );",
@@ -81,6 +83,7 @@ pub fn init_db(path: &Path) -> Result<Connection> {
     // We no longer clear terminals on launch.
     // By reusing existing DB records and only respawning their PTY processes,
     // we persist workspace layouts without accumulating stale DB rows.
+    let _ = conn.execute("ALTER TABLE terminals ADD COLUMN title TEXT", []);
     Ok(conn)
 }
 
@@ -123,12 +126,12 @@ pub fn delete_workspace(conn: &Connection, id: &str) -> Result<()> {
 
 pub fn get_terminals(conn: &Connection, workspace_id: &str) -> Result<Vec<Terminal>> {
     let mut stmt = conn.prepare(
-        "SELECT id,workspace_id,shell,cwd,position,size_percent,created_at
+        "SELECT id,workspace_id,title,shell,cwd,position,size_percent,created_at
          FROM terminals WHERE workspace_id=?1 ORDER BY position",
     )?;
     let rows = stmt.query_map(params![workspace_id], |r| Ok(Terminal {
-        id: r.get(0)?, workspace_id: r.get(1)?, shell: r.get(2)?,
-        cwd: r.get(3)?, position: r.get(4)?, size_percent: r.get(5)?, created_at: r.get(6)?,
+        id: r.get(0)?, workspace_id: r.get(1)?, title: r.get(2).unwrap_or(None), shell: r.get(3)?,
+        cwd: r.get(4)?, position: r.get(5)?, size_percent: r.get(6)?, created_at: r.get(7)?,
     }))?.collect();
     rows
 }
@@ -141,11 +144,16 @@ pub fn create_terminal_with_id(conn: &Connection, id: &str, workspace_id: &str, 
     )?;
     let created_at = now_ms();
     conn.execute(
-        "INSERT INTO terminals (id,workspace_id,shell,cwd,position,size_percent,created_at)
-         VALUES (?1,?2,?3,?4,?5,?6,?7)",
+        "INSERT INTO terminals (id,workspace_id,title,shell,cwd,position,size_percent,created_at)
+         VALUES (?1,?2,NULL,?3,?4,?5,?6,?7)",
         params![id, workspace_id, shell, cwd, position, 50.0f64, created_at],
     )?;
-    Ok(Terminal { id: id.into(), workspace_id: workspace_id.into(), shell: shell.into(), cwd: cwd.into(), position, size_percent: 50.0, created_at })
+    Ok(Terminal { id: id.into(), workspace_id: workspace_id.into(), title: None, shell: shell.into(), cwd: cwd.into(), position, size_percent: 50.0, created_at })
+}
+
+pub fn rename_terminal(conn: &Connection, id: &str, title: &str) -> Result<()> {
+    conn.execute("UPDATE terminals SET title=?1 WHERE id=?2", params![title, id])?;
+    Ok(())
 }
 
 pub fn delete_terminal(conn: &Connection, id: &str) -> Result<()> {
@@ -249,7 +257,7 @@ mod tests {
             CREATE TABLE IF NOT EXISTS browser_panes (
                 id           TEXT PRIMARY KEY,
                 workspace_id TEXT NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
-                url          TEXT NOT NULL DEFAULT 'about:blank',
+                url          TEXT NOT NULL DEFAULT 'https://google.com',
                 position     INTEGER NOT NULL DEFAULT 0,
                 created_at   INTEGER NOT NULL
             );",

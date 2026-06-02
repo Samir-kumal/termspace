@@ -57,6 +57,19 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
   const [searchQuery, setSearchQuery] = useState('')
   const searchInputRef = useRef<HTMLInputElement>(null)
 
+  const terminal = useAppStore(s => s.terminalsByWorkspace[workspaceId]?.find(t => t.id === terminalId))
+  const renameTerminal = useAppStore(s => s.renameTerminal)
+  const [isEditingTitle, setIsEditingTitle] = useState(false)
+  const [editTitleValue, setEditTitleValue] = useState('')
+
+  const handleTitleSave = () => {
+    setIsEditingTitle(false)
+    if (editTitleValue.trim() !== terminal?.title) {
+      renameTerminal(workspaceId, terminalId, editTitleValue.trim())
+      invoke('rename_terminal', { id: terminalId, title: editTitleValue.trim() }).catch(console.error)
+    }
+  }
+
   const settings = useAppStore((s) => s.settings)
   const keybindingHandler = useKeybindingHandler()
   const keybindingHandlerRef = useRef(keybindingHandler)
@@ -291,131 +304,102 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
           </button>
         </div>
       )}
+      {!showSearch && (
+        <div
+          style={{
+            position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 10,
+            display: 'flex', alignItems: 'center', gap: 8, padding: '4px 12px',
+            background: 'var(--bg-item)',
+            border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border-inactive)'}`,
+            borderRadius: 20,
+            boxShadow: '0 4px 12px rgba(0,0,0,0.5)',
+            opacity: isHovered || isActive ? 1 : 0.6,
+            transition: 'opacity 0.2s, border-color 0.2s'
+          }}
+        >
+          {isEditingTitle ? (
+            <input
+              autoFocus
+              value={editTitleValue}
+              onChange={e => setEditTitleValue(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter') handleTitleSave()
+                if (e.key === 'Escape') setIsEditingTitle(false)
+              }}
+              onBlur={handleTitleSave}
+              style={{
+                background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-active)',
+                fontSize: 12, width: 80, textAlign: 'center', fontFamily: 'inherit'
+              }}
+            />
+          ) : (
+            <div
+              onDoubleClick={() => {
+                setEditTitleValue(terminal?.title || 'Terminal')
+                setIsEditingTitle(true)
+              }}
+              style={{
+                fontSize: 12, color: isActive ? 'var(--text-active)' : 'var(--text-inactive)',
+                cursor: 'text', userSelect: 'none', fontWeight: 500
+              }}
+            >
+              {terminal?.title || 'Terminal'}
+            </div>
+          )}
 
-      {isHovered && !showSearch && (
-        <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10, display: 'flex', gap: 6 }}>
           <div
             draggable
             onDragStart={(e) => {
+              e.stopPropagation()
               e.dataTransfer.setData('application/terminal-id', terminalId)
               e.dataTransfer.effectAllowed = 'move'
             }}
             title="Drag to reorder"
-            style={{
-              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'rgba(34, 30, 24, 0.8)', border: '1px solid var(--border-inactive)',
-              borderRadius: 6, color: 'var(--text-inactive)', cursor: 'grab',
-              fontSize: 12, backdropFilter: 'blur(4px)', transition: 'all 0.15s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#ffffff'
-              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.5)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--text-inactive)'
-              e.currentTarget.style.borderColor = 'var(--border-inactive)'
-            }}
+            style={{ color: 'var(--text-dim)', cursor: 'grab', display: 'flex' }}
+            onMouseEnter={e => e.currentTarget.style.color = 'var(--text-active)'}
+            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>
           </div>
-          
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onSplit('vertical')
-            }}
-            title="Split Right"
-            style={{
-              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'rgba(34, 30, 24, 0.8)', border: '1px solid var(--border-inactive)',
-              borderRadius: 6, color: 'var(--text-inactive)', cursor: 'pointer',
-              fontSize: 12, backdropFilter: 'blur(4px)', transition: 'all 0.15s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#ffffff'
-              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.5)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--text-inactive)'
-              e.currentTarget.style.borderColor = 'var(--border-inactive)'
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="3" x2="12" y2="21"></line></svg>
-          </button>
 
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onSplit('horizontal')
-            }}
-            title="Split Down"
-            style={{
-              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'rgba(34, 30, 24, 0.8)', border: '1px solid var(--border-inactive)',
-              borderRadius: 6, color: 'var(--text-inactive)', cursor: 'pointer',
-              fontSize: 12, backdropFilter: 'blur(4px)', transition: 'all 0.15s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#ffffff'
-              e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.5)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--text-inactive)'
-              e.currentTarget.style.borderColor = 'var(--border-inactive)'
-            }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="12" x2="21" y2="12"></line></svg>
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onToggleMaximize()
-            }}
-            title={isMaximized ? "Restore terminal" : "Maximize terminal"}
-            style={{
-              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'rgba(34, 30, 24, 0.8)', border: '1px solid var(--border-inactive)',
-              borderRadius: 6, color: 'var(--text-inactive)', cursor: 'pointer',
-              fontSize: 12, backdropFilter: 'blur(4px)', transition: 'all 0.15s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#e8a045'
-              e.currentTarget.style.borderColor = 'rgba(232, 160, 69, 0.5)'
-              e.currentTarget.style.background = 'rgba(232, 160, 69, 0.1)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--text-inactive)'
-              e.currentTarget.style.borderColor = 'var(--border-inactive)'
-              e.currentTarget.style.background = 'rgba(34, 30, 24, 0.8)'
-            }}
-          >
-            {isMaximized ? '↙' : '↗'}
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onClose()
-            }}
-            title="Close terminal"
-            style={{
-              width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: 'rgba(34, 30, 24, 0.8)', border: '1px solid var(--border-inactive)',
-              borderRadius: 6, color: 'var(--text-inactive)', cursor: 'pointer',
-              fontSize: 16, lineHeight: 1, paddingBottom: 2, backdropFilter: 'blur(4px)', transition: 'all 0.15s'
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.color = '#e07b7b'
-              e.currentTarget.style.borderColor = 'rgba(224, 123, 123, 0.5)'
-              e.currentTarget.style.background = 'rgba(224, 123, 123, 0.1)'
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.color = 'var(--text-inactive)'
-              e.currentTarget.style.borderColor = 'var(--border-inactive)'
-              e.currentTarget.style.background = 'rgba(34, 30, 24, 0.8)'
-            }}
-          >
-            ×
-          </button>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 4 }}>
+            <button
+              onClick={(e) => { e.stopPropagation(); onSplit('vertical') }}
+              title="Split Right"
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', display: 'flex' }}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--text-active)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="3" x2="12" y2="21"></line></svg>
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onSplit('horizontal') }}
+              title="Split Down"
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', display: 'flex' }}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--text-active)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="3" y1="12" x2="21" y2="12"></line></svg>
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleMaximize() }}
+              title={isMaximized ? "Restore" : "Maximize"}
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 12, lineHeight: 1 }}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--accent)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}
+            >
+              {isMaximized ? '↙' : '↗'}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onClose() }}
+              title="Close"
+              style={{ background: 'transparent', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: 14, lineHeight: 1, paddingBottom: 2 }}
+              onMouseEnter={e => e.currentTarget.style.color = '#e07b7b'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}
+            >
+              ×
+            </button>
+          </div>
         </div>
       )}
     </div>
