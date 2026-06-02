@@ -227,23 +227,19 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
       style={{
         width: '100%', height: '100%',
         display: 'flex', flexDirection: 'column',
-        overflow: 'hidden', borderRadius: 8,
+        overflow: 'hidden', borderRadius: 0,
         border: isDragOver 
           ? '2px dashed var(--accent)' 
-          : (isActive ? '1px solid var(--accent)' : '1px solid var(--border-inactive)'),
+          : (isActive ? '2px solid color-mix(in srgb, var(--accent) 40%, transparent)' : '2px solid transparent'),
         boxShadow: isDragOver
-          ? 'inset 0 0 0 1px var(--accent), 0 8px 24px rgba(0,0,0,0.15)'
-          : (isActive ? '0 0 0 1px var(--accent), 0 4px 12px rgba(0,0,0,0.1)' : '0 2px 8px rgba(0,0,0,0.05)'),
+          ? '0 8px 24px rgba(0,0,0,0.15)'
+          : 'none',
         background: 'var(--bg-terminal)', cursor: 'text',
         position: 'relative',
-        transition: 'border 0.2s, box-shadow 0.2s',
+        transition: 'border 0.2s',
         opacity: isDragOver ? 0.7 : 1,
       }}
     >
-      <div style={{ flex: 1, minHeight: 0, padding: '10px 0 10px 12px' }}>
-        <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
-      </div>
-
       {showSearch && (
         <div
           style={{
@@ -307,16 +303,14 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
       {!showSearch && (
         <div
           style={{
-            position: 'absolute', top: 8, left: '50%', transform: 'translateX(-50%)', zIndex: 10,
-            display: 'flex', alignItems: 'center', gap: 10, padding: '6px 16px',
-            background: 'var(--bg-item)',
-            border: `1px solid ${isActive ? 'var(--accent)' : 'var(--border-inactive)'}`,
-            borderRadius: 24,
-            boxShadow: '0 4px 16px rgba(0,0,0,0.4)',
-            opacity: isHovered || isActive ? 1 : 0.6,
-            transition: 'opacity 0.2s, border-color 0.2s'
+            display: 'flex', alignItems: 'center', padding: '0 16px', height: 32,
+            background: 'transparent',
+            borderBottom: '1px solid var(--border-inactive)',
+            flexShrink: 0
           }}
         >
+          <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', marginRight: 10 }} />
+          
           {isEditingTitle ? (
             <input
               autoFocus
@@ -328,8 +322,8 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
               }}
               onBlur={handleTitleSave}
               style={{
-                background: 'transparent', border: 'none', outline: 'none', color: 'var(--text-active)',
-                fontSize: 14, width: 80, textAlign: 'center', fontFamily: 'inherit'
+                background: 'transparent', border: 'none', outline: 'none', color: 'var(--accent)',
+                fontSize: 10, letterSpacing: 1, width: 120, fontFamily: 'SF Mono, Menlo, monospace', textTransform: 'uppercase'
               }}
             />
           ) : (
@@ -339,30 +333,31 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
                 setIsEditingTitle(true)
               }}
               style={{
-                fontSize: 14, color: isActive ? 'var(--text-active)' : 'var(--text-inactive)',
-                cursor: 'text', userSelect: 'none', fontWeight: 600
+                fontSize: 10, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 1,
+                cursor: 'text', userSelect: 'none', fontWeight: 600, fontFamily: 'SF Mono, Menlo, monospace'
               }}
             >
               {terminal?.title || 'Terminal'}
             </div>
           )}
 
-          <div
-            draggable
-            onDragStart={(e) => {
-              e.stopPropagation()
-              e.dataTransfer.setData('application/terminal-id', terminalId)
-              e.dataTransfer.effectAllowed = 'move'
-            }}
-            title="Drag to reorder"
-            style={{ color: 'var(--text-dim)', cursor: 'grab', display: 'flex' }}
-            onMouseEnter={e => e.currentTarget.style.color = 'var(--text-active)'}
-            onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>
-          </div>
+          <span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 12, fontFamily: 'SF Mono, Menlo, monospace', flex: 1 }}>~/vortex · main</span>
 
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginLeft: 6 }}>
+          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+            <div
+              draggable
+              onDragStart={(e) => {
+                e.stopPropagation()
+                e.dataTransfer.setData('application/terminal-id', terminalId)
+                e.dataTransfer.effectAllowed = 'move'
+              }}
+              title="Drag to reorder"
+              style={{ color: 'var(--text-dim)', cursor: 'grab', display: 'flex', marginRight: 4 }}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--text-active)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-dim)'}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>
+            </div>
             <button
               onClick={(e) => { e.stopPropagation(); onSplit('horizontal') }}
               title="Split Right"
@@ -402,6 +397,10 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
           </div>
         </div>
       )}
+
+      <div style={{ flex: 1, minHeight: 0, padding: '4px 0 4px 8px' }}>
+        <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
+      </div>
     </div>
   )
 }

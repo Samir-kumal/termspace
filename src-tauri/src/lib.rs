@@ -18,6 +18,7 @@ pub fn run() {
             std::fs::create_dir_all(&data_dir).unwrap();
             let conn = db::init_db(&data_dir.join("state.db")).expect("db init failed");
             app.manage(DbState(Mutex::new(conn)));
+            app.manage(commands::SysInfoState(Mutex::new(sysinfo::System::new())));
             app.manage(PtyManager::new());
             app.manage(BrowserPaneManager::new());
 
@@ -39,6 +40,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::get_system_stats,
             commands::get_workspaces,
             commands::create_workspace,
             commands::update_workspace,

@@ -29,15 +29,26 @@ export function WorkspaceSidebar({ isCollapsed, onToggleCollapse, onAddWorkspace
     >
       <div
         style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          height: 38, paddingLeft: 70, paddingRight: 12,
+          color: 'var(--text-inactive)', fontSize: 11, letterSpacing: 1,
+          fontFamily: 'SF Mono, Menlo, monospace'
+        }}
+      >
+        <span>V0.8.4</span>
+      </div>
+
+      <div
+        style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: isCollapsed ? 'center' : 'space-between',
-          padding: isCollapsed ? '0 0 12px' : '0 4px 12px',
+          padding: isCollapsed ? '16px 0 8px' : '16px 12px 8px',
         }}
       >
         {!isCollapsed && (
           <span style={{ 
-            fontSize: 10, letterSpacing: 1, color: 'var(--text-inactive)', textTransform: 'uppercase',
+            fontSize: 10, letterSpacing: 1.5, color: 'var(--text-dim)', fontWeight: 600, textTransform: 'uppercase',
             whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 
           }}>
             Workspaces
@@ -52,11 +63,9 @@ export function WorkspaceSidebar({ isCollapsed, onToggleCollapse, onAddWorkspace
             padding: 4, borderRadius: 4, flexShrink: 0,
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'var(--bg-item)'
             e.currentTarget.style.color = 'var(--text-active)'
           }}
           onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent'
             e.currentTarget.style.color = 'var(--text-inactive)'
           }}
         >
@@ -77,6 +86,7 @@ export function WorkspaceSidebar({ isCollapsed, onToggleCollapse, onAddWorkspace
             animate={{ opacity: 1, height: 'auto', scale: 1 }}
             exit={{ opacity: 0, height: 0, scale: 0.9 }}
             transition={{ duration: 0.2 }}
+            style={{ width: '100%' }}
           >
             <WorkspaceItem
               workspace={ws}
@@ -107,34 +117,43 @@ export function WorkspaceSidebar({ isCollapsed, onToggleCollapse, onAddWorkspace
           </motion.div>
         ))}
       </AnimatePresence>
-      <motion.div layout transition={{ duration: 0.2 }}>
+      <motion.div layout transition={{ duration: 0.2 }} style={{ width: '100%' }}>
         <AddWorkspaceButton onClick={onAddWorkspace} isCollapsed={isCollapsed} />
       </motion.div>
 
       <div style={{ flex: 1 }} />
       
-      <button
-        onClick={onOpenSettings}
-        title={isCollapsed ? 'Settings' : undefined}
+      <div
         style={{
-          display: 'flex', alignItems: 'center', justifyContent: isCollapsed ? 'center' : 'flex-start', gap: 10,
-          padding: isCollapsed ? '8px 0' : '8px 12px', width: '100%', background: 'transparent',
-          border: 'none', borderRadius: 6, color: 'var(--text-inactive)',
-          cursor: 'pointer', fontSize: 13, textAlign: 'left',
-          marginTop: 'auto', transition: 'all 0.15s ease'
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'var(--bg-item)'
-          e.currentTarget.style.color = 'var(--text-active)'
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent'
-          e.currentTarget.style.color = 'var(--text-inactive)'
+          display: 'flex', alignItems: 'center', padding: '12px',
+          borderTop: '1px solid var(--border-inactive)', gap: 10,
+          margin: '0 -10px -12px',
         }}
       >
-        <span style={{ fontSize: 16, flexShrink: 0 }}>⚙</span> 
-        {!isCollapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Settings</span>}
-      </button>
+        <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--bg-item-active)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'var(--text-inactive)', flexShrink: 0 }}>
+          SK
+        </div>
+        {!isCollapsed && (
+          <div style={{ flex: 1, overflow: 'hidden' }}>
+            <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-active)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Samir Kumar</div>
+            <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Personal · Pro</div>
+          </div>
+        )}
+        {!isCollapsed && (
+          <button
+            onClick={onOpenSettings}
+            title="Settings"
+            style={{
+              background: 'transparent', border: 'none', color: 'var(--text-dim)',
+              cursor: 'pointer', padding: 4, flexShrink: 0
+            }}
+            onMouseEnter={(e) => e.currentTarget.style.color = 'var(--text-active)'}
+            onMouseLeave={(e) => e.currentTarget.style.color = 'var(--text-dim)'}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+          </button>
+        )}
+      </div>
     </div>
   )
 }

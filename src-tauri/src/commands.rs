@@ -4,8 +4,40 @@ use crate::pty_manager::PtyManager;
 use rusqlite::Connection;
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, State};
+use sysinfo::System;
 
 pub struct DbState(pub Mutex<Connection>);
+pub struct SysInfoState(pub Mutex<System>);
+
+#[derive(serde::Serialize)]
+pub struct SystemStats {
+    pub cpu: f32,
+    pub ram_used: f64,
+    pub ram_total: f64,
+}
+
+#[tauri::command]
+pub fn get_system_stats(state: State<SysInfoState>) -> Result<SystemStats, String> {
+    let mut sys = state.0.lock().unwrap();
+    sys.refresh_cpu_usage();
+    sys.refresh_memory();
+
+    let cpus = sys.cpus();
+    let cpu = if cpus.is_empty() {
+        0.0
+    } else {
+        cpus.iter().map(|c| c.cpu_usage()).sum::<f32>() / cpus.len() as f32
+    };
+
+    let ram_used = sys.used_memory() as f64 / 1024.0 / 1024.0 / 1024.0;
+    let ram_total = sys.total_memory() as f64 / 1024.0 / 1024.0 / 1024.0;
+
+    Ok(SystemStats {
+        cpu,
+        ram_used,
+        ram_total,
+    })
+}
 
 #[tauri::command]
 pub fn get_workspaces(db: State<DbState>) -> Result<Vec<Workspace>, String> {

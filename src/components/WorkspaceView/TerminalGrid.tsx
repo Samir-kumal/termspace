@@ -24,27 +24,12 @@ const CustomResizeHandle = ({ id, direction }: { id: string, direction: 'horizon
     <Separator
       id={id}
       style={{
-        width: direction === 'horizontal' ? '6px' : '100%',
-        height: direction === 'vertical' ? '6px' : '100%',
+        width: direction === 'horizontal' ? '2px' : '100%',
+        height: direction === 'vertical' ? '2px' : '100%',
         cursor: direction === 'horizontal' ? 'col-resize' : 'row-resize',
+        background: 'var(--border-inactive)',
       }}
-    >
-      <div className="resize-icon">
-        {direction === 'horizontal' ? (
-          <svg width="8" height="24" viewBox="0 0 8 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="4" cy="6" r="1" />
-            <circle cx="4" cy="12" r="1" />
-            <circle cx="4" cy="18" r="1" />
-          </svg>
-        ) : (
-          <svg width="24" height="8" viewBox="0 0 24 8" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="6" cy="4" r="1" />
-            <circle cx="12" cy="4" r="1" />
-            <circle cx="18" cy="4" r="1" />
-          </svg>
-        )}
-      </div>
-    </Separator>
+    />
   )
 }
 
@@ -188,7 +173,7 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
   }
 
   return (
-    <div style={{ flex: 1, padding: 12, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
+    <div style={{ flex: 1, padding: 0, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
       {renderLayoutNode(layout)}
     </div>
   )

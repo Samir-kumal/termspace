@@ -1,49 +1,33 @@
-:root, [data-theme="warm-dark"] {
-  --bg-main:         #1a1612;
-  --bg-sidebar:      #221e18;
-  --bg-terminal:     #161310;
-  --bg-item:         #1d1a14;
-  --bg-item-active:  #2e2820;
-  --border-inactive: #2e2820;
-  --border-active:   #e8a045;
-  --text-active:     #e8a045;
-  --text-inactive:   #5a5040;
-  --text-dim:        #4a4238;
-  --accent:          #e8a045;
-  --sidebar-width:   200px;
-  --handle-size:     4px;
-}
-
-[data-theme="cold-dark"] {
-  --bg-main:         #0d1117;
-  --bg-sidebar:      #161b22;
-  --bg-terminal:     #0d1117;
-  --bg-item:         #1c2128;
-  --bg-item-active:  #2d333b;
-  --border-inactive: #30363d;
-  --border-active:   #58a6ff;
-  --text-active:     #58a6ff;
-  --text-inactive:   #8b949e;
-  --text-dim:        #484f58;
-  --accent:          #58a6ff;
-  --sidebar-width:   200px;
-  --handle-size:     4px;
+:root, [data-theme="warm-dark"], [data-theme="cold-dark"] {
+  --bg-main:         #050505;
+  --bg-sidebar:      #0a0a0a;
+  --bg-terminal:     #050505;
+  --bg-item:         rgba(255, 255, 255, 0.03);
+  --bg-item-active:  rgba(255, 255, 255, 0.06);
+  --border-inactive: #1f1f1f;
+  --border-active:   #333333;
+  --text-active:     #e5e5e5;
+  --text-inactive:   #737373;
+  --text-dim:        #525252;
+  --accent:          #06b6d4;
+  --sidebar-width:   240px;
+  --handle-size:     1px;
 }
 
 [data-theme="light"] {
   --bg-main:         #ffffff;
-  --bg-sidebar:      #f6f8fa;
+  --bg-sidebar:      #fafafa;
   --bg-terminal:     #ffffff;
-  --bg-item:         #f3f4f6;
-  --bg-item-active:  #e5e7eb;
-  --border-inactive: #d1d5db;
-  --border-active:   #0969da;
-  --text-active:     #24292f;
-  --text-inactive:   #57606a;
-  --text-dim:        #8c959f;
-  --accent:          #0969da;
-  --sidebar-width:   200px;
-  --handle-size:     4px;
+  --bg-item:         rgba(0, 0, 0, 0.03);
+  --bg-item-active:  rgba(0, 0, 0, 0.06);
+  --border-inactive: #e5e5e5;
+  --border-active:   #cccccc;
+  --text-active:     #171717;
+  --text-inactive:   #737373;
+  --text-dim:        #a3a3a3;
+  --accent:          #0891b2;
+  --sidebar-width:   240px;
+  --handle-size:     1px;
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }

@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { Workspace } from '../../types'
+import * as LucideIcons from 'lucide-react'
 
-const EMOJIS = ['💻', '🔥', '🌿', '⚡', '🚀', '🎯', '🛠️', '📦', '🔬', '🌊']
+const ICONS = ['TerminalSquare', 'Server', 'FlaskConical', 'Laptop', 'Rocket', 'Database', 'Boxes', 'LayoutGrid', 'Globe', 'Cpu']
 const COLORS = ['#e8a045', '#4fc3a1', '#7b9ef0', '#e07b7b', '#b17dd4', '#e8d045']
 
 interface Props {
@@ -13,7 +14,7 @@ interface Props {
 
 export function WorkspaceModal({ initial, onSave, onCancel }: Props) {
   const [name, setName] = useState(initial?.name ?? '')
-  const [emoji, setEmoji] = useState(initial?.emoji ?? '💻')
+  const [emoji, setEmoji] = useState(initial?.emoji ?? 'TerminalSquare')
   const [color, setColor] = useState(initial?.color ?? '#e8a045')
 
   return (
@@ -64,20 +65,23 @@ export function WorkspaceModal({ initial, onSave, onCancel }: Props) {
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <label style={{ fontSize: 13, color: 'var(--text-inactive)', fontWeight: 500 }}>Icon</label>
           <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-            {EMOJIS.map((e) => (
+            {ICONS.map((i) => {
+              const IconComp = (LucideIcons as any)[i]
+              return (
               <button
-                key={e}
-                onClick={() => setEmoji(e)}
+                key={i}
+                onClick={() => setEmoji(i)}
                 style={{
-                  fontSize: 20, background: emoji === e ? 'var(--bg-item-active)' : 'var(--bg-sidebar)', 
+                  color: emoji === i ? 'var(--accent)' : 'var(--text-inactive)',
+                  background: emoji === i ? 'var(--bg-item-active)' : 'var(--bg-sidebar)', 
                   cursor: 'pointer', width: 40, height: 40, display: 'flex', alignItems: 'center', justifyContent: 'center',
                   borderRadius: 8, transition: 'all 0.15s',
-                  border: emoji === e ? '1px solid var(--accent)' : '1px solid var(--border-inactive)',
+                  border: emoji === i ? '1px solid var(--accent)' : '1px solid var(--border-inactive)',
                 }}
               >
-                {e}
+                {IconComp && <IconComp size={18} strokeWidth={2} />}
               </button>
-            ))}
+            )})}
           </div>
         </div>
 

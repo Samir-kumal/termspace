@@ -15,59 +15,49 @@ export function WorkspaceHeader({ workspace, terminals, activeTerminalId, onAddT
   return (
     <div
       style={{
-        height: 52, display: 'flex', alignItems: 'center',
-        padding: '0 16px', borderBottom: '1px solid var(--border-inactive)',
-        gap: 16, flexShrink: 0, background: 'var(--bg-main)'
+        height: 36, display: 'flex', alignItems: 'stretch',
+        borderBottom: '1px solid var(--border-inactive)',
+        background: 'var(--bg-sidebar)', flexShrink: 0
       }}
     >
-      <span style={{ fontSize: 18 }}>{workspace.emoji}</span>
-      <span
-        style={{ fontSize: 14, color: 'var(--text-active)', fontWeight: 600, cursor: 'pointer', letterSpacing: 0.2 }}
-        onClick={onEditWorkspace}
-        title="Click to edit"
-      >
-        {workspace.name}
-      </span>
-      <span style={{ fontSize: 12, color: 'var(--text-dim)', fontWeight: 500 }}>
-        {terminals.length}/4
-      </span>
-
-      <div style={{ flex: 1, display: 'flex', gap: 6, overflowX: 'auto', padding: '0 16px', alignItems: 'center' }}>
-        {terminals.length > 1 && terminals.map((t, idx) => {
+      <div style={{ flex: 1, display: 'flex', overflowX: 'auto', overflowY: 'hidden' }}>
+        {terminals.map((t, idx) => {
           const isActive = t.id === activeTerminalId
           return (
             <div
               key={t.id}
               onClick={() => onSelectTerminal(t.id)}
               style={{
-                display: 'flex', alignItems: 'center', gap: 8, padding: '4px 10px',
-                borderRadius: 6, background: isActive ? 'var(--bg-item-active)' : 'transparent',
+                display: 'flex', alignItems: 'center', gap: 8, padding: '0 12px',
+                background: isActive ? 'var(--bg-main)' : 'transparent',
                 color: isActive ? 'var(--text-active)' : 'var(--text-inactive)',
-                border: isActive ? '1px solid rgba(255, 255, 255, 0.05)' : '1px solid transparent',
-                cursor: 'pointer', transition: 'all 0.15s ease', minWidth: 80, maxWidth: 140,
-                boxShadow: isActive ? '0 2px 8px rgba(0,0,0,0.2)' : 'none'
+                borderRight: '1px solid var(--border-inactive)',
+                cursor: 'pointer', transition: 'background 0.15s ease, color 0.15s ease',
+                minWidth: 120, maxWidth: 200, flexShrink: 0,
+                position: 'relative'
               }}
               onMouseEnter={(e) => {
-                if (!isActive) e.currentTarget.style.background = 'var(--bg-item)'
+                if (!isActive) e.currentTarget.style.color = 'var(--text-active)'
               }}
               onMouseLeave={(e) => {
-                if (!isActive) e.currentTarget.style.background = 'transparent'
+                if (!isActive) e.currentTarget.style.color = 'var(--text-inactive)'
               }}
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7 }}>
-                <polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line>
-              </svg>
-              <span style={{ fontSize: 12, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                Term {idx + 1}
+              {isActive && <div style={{ position: 'absolute', top: -1, left: 0, right: 0, height: 1, background: 'var(--accent)' }} />}
+              <span style={{ fontSize: 10, color: 'var(--text-dim)', fontFamily: 'SF Mono, Menlo, monospace' }}>
+                0{idx + 1}
+              </span>
+              <span style={{ fontSize: 11, flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {t.title || 'Terminal'}
               </span>
               <button
                 onClick={(e) => { e.stopPropagation(); onCloseTerminal(t.id); }}
                 style={{
                   background: 'transparent', border: 'none', color: 'inherit',
-                  opacity: 0.5, cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center'
+                  opacity: 0.4, cursor: 'pointer', padding: 2, display: 'flex', alignItems: 'center'
                 }}
                 onMouseEnter={(e) => e.currentTarget.style.opacity = '1'}
-                onMouseLeave={(e) => e.currentTarget.style.opacity = '0.5'}
+                onMouseLeave={(e) => e.currentTarget.style.opacity = '0.4'}
               >
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>
@@ -76,52 +66,56 @@ export function WorkspaceHeader({ workspace, terminals, activeTerminalId, onAddT
             </div>
           )
         })}
+        {terminals.length < 8 && (
+          <button
+            onClick={onAddTerminal}
+            style={{
+              padding: '0 16px', background: 'transparent',
+              border: 'none', borderRight: '1px solid var(--border-inactive)',
+              color: 'var(--text-dim)', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center'
+            }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--text-active)' }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--text-dim)' }}
+          >
+            <span style={{ fontSize: 14 }}>+</span>
+          </button>
+        )}
       </div>
 
-      {terminals.length < 4 && (
+      <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '0 12px', flexShrink: 0 }}>
         <button
-          onClick={onAddTerminal}
+          onClick={() => document.dispatchEvent(new KeyboardEvent('keydown', { key: 'k', metaKey: true }))}
           style={{
-            marginLeft: 'auto', padding: '6px 14px', background: 'transparent',
-            border: '1px dashed var(--border-inactive)', borderRadius: 6,
-            color: 'var(--text-inactive)', fontSize: 12, fontWeight: 500, cursor: 'pointer',
-            transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', gap: 6
+            display: 'flex', alignItems: 'center', gap: 6,
+            background: 'transparent', border: '1px solid var(--border-inactive)',
+            borderRadius: 4, padding: '3px 6px', color: 'var(--text-inactive)',
+            fontSize: 10, cursor: 'text'
+          }}
+        >
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+          Quick actions ⌘K
+        </button>
+        <button
+          onClick={onAddBrowserPane}
+          style={{
+            padding: '3px 8px', background: 'transparent',
+            border: '1px solid var(--border-inactive)', borderRadius: 4,
+            color: 'var(--text-inactive)', fontSize: 10, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 4
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.color = 'var(--text-active)'
-            e.currentTarget.style.borderColor = 'var(--text-inactive)'
-            e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
+            e.currentTarget.style.borderColor = 'var(--text-dim)'
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.color = 'var(--text-inactive)'
             e.currentTarget.style.borderColor = 'var(--border-inactive)'
-            e.currentTarget.style.background = 'transparent'
           }}
         >
-          <span style={{ fontSize: 14 }}>+</span> Terminal
+          <span>[ ]</span> Browser
         </button>
-      )}
-      <button
-        onClick={onAddBrowserPane}
-        style={{
-          padding: '6px 14px', background: 'transparent',
-          border: '1px dashed var(--border-inactive)', borderRadius: 6,
-          color: 'var(--text-inactive)', fontSize: 12, fontWeight: 500, cursor: 'pointer',
-          transition: 'all 0.2s ease', display: 'flex', alignItems: 'center', gap: 6
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.color = 'var(--text-active)'
-          e.currentTarget.style.borderColor = 'var(--text-inactive)'
-          e.currentTarget.style.background = 'rgba(255,255,255,0.03)'
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.color = 'var(--text-inactive)'
-          e.currentTarget.style.borderColor = 'var(--border-inactive)'
-          e.currentTarget.style.background = 'transparent'
-        }}
-      >
-        <span style={{ fontSize: 14 }}>🌐</span> Browser
-      </button>
+      </div>
     </div>
   )
 }

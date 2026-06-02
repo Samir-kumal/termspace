@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react'
 import { invoke } from '../../utils/tauri'
 import { useAppStore } from '../../store/useAppStore'
 import { Workspace, Terminal, BrowserPane as BrowserPaneType } from '../../types'
@@ -14,6 +15,26 @@ const EMPTY_TERMINALS: Terminal[] = []
 const EMPTY_BROWSER_PANES: BrowserPaneType[] = []
 
 export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
+  const [stats, setStats] = useState({ cpu: 0, ram_used: 0, ram_total: 0 })
+
+  useEffect(() => {
+    let active = true
+    const updateStats = async () => {
+      try {
+        const s = await invoke<{ cpu: number, ram_used: number, ram_total: number }>('get_system_stats')
+        if (active) setStats(s)
+      } catch (err) {
+        console.error('Failed to fetch system stats:', err)
+      }
+    }
+    updateStats()
+    const interval = setInterval(updateStats, 2000)
+    return () => {
+      active = false
+      clearInterval(interval)
+    }
+  }, [])
+
   const terminals = useAppStore((s) => s.terminalsByWorkspace[workspace.id] ?? EMPTY_TERMINALS)
   const activeTerminalId = useAppStore((s) => s.activeTerminalId)
   const addTerminal = useAppStore((s) => s.addTerminal)
@@ -113,6 +134,19 @@ export function WorkspaceView({ workspace, onEditWorkspace }: Props) {
             onCloseBrowserPane={handleCloseBrowserPane}
             onSplitBrowserPane={(browserPaneId, direction, initialUrl) => handleAddBrowserPane(browserPaneId, direction, initialUrl)}
           />
+          <div style={{ height: 26, background: 'var(--bg-main)', borderTop: '1px solid var(--border-inactive)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', fontSize: 9, fontFamily: 'SF Mono, Menlo, monospace', color: 'var(--text-dim)', letterSpacing: 0.5, flexShrink: 0 }}>
+             <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+                <span style={{ color: '#22c55e', display: 'flex', alignItems: 'center', gap: 6 }}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"></polyline></svg> CONNECTED <span style={{ color: '#4ade80' }}>vortex-01</span></span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="6" y1="3" x2="6" y2="15"></line><circle cx="18" cy="6" r="3"></circle><circle cx="6" cy="18" r="3"></circle><path d="M18 9a9 9 0 0 1-9 9"></path></svg> BRANCH <span style={{ color: 'var(--text-inactive)' }}>main*</span></span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg> CPU <span style={{ color: 'var(--text-active)' }}>{stats.cpu.toFixed(1)}%</span></span>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg> RAM <span style={{ color: 'var(--text-active)' }}>{stats.ram_used.toFixed(1)} / {stats.ram_total.toFixed(0)} GB</span></span>
+             </div>
+             <div style={{ display: 'flex', gap: 20, alignItems: 'center' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12.55a11 11 0 0 1 14.08 0"></path><path d="M1.42 9a16 16 0 0 1 21.16 0"></path><path d="M8.53 16.11a6 6 0 0 1 6.95 0"></path><line x1="12" y1="20" x2="12.01" y2="20"></line></svg> <span style={{ color: 'var(--text-active)' }}>142 ms</span></span>
+                <span>UTF-8</span>
+                <span>{new Date().toLocaleTimeString('en-US', { hour12: false })}</span>
+             </div>
+          </div>
         </div>
       ) : (
         <div style={{
