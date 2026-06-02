@@ -20,6 +20,22 @@ pub fn run() {
             app.manage(DbState(Mutex::new(conn)));
             app.manage(PtyManager::new());
             app.manage(BrowserPaneManager::new());
+
+            #[cfg(target_os = "macos")]
+            {
+                if let Ok(menu) = tauri::menu::Menu::default(app.handle()) {
+                    let _ = app.set_menu(menu);
+                }
+            }
+
+            // Make the main webview transparent so child webviews can float behind it.
+            // The NSWindow background color remains what was set in tauri.conf.json.
+            if let Some(window) = app.get_webview_window("main") {
+                let webview: &tauri::Webview = window.as_ref();
+                // Color(R, G, B, A)
+                let _ = webview.set_background_color(Some(tauri::utils::config::Color(0, 0, 0, 0)));
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

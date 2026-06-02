@@ -114,7 +114,18 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
 
   const renderBrowserPane = (browserPaneId: string) => {
     const pane = browserPanes.find(p => p.id === browserPaneId)
-    if (!pane) return null
+    if (!pane) {
+      return (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: 'var(--bg-main)', height: '100%' }}>
+          <div style={{ height: 36, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 8px', background: '#1e1e1e', borderBottom: '1px solid #333' }}>
+            <button onClick={() => onCloseBrowserPane(browserPaneId)} style={{ width: 22, height: 22, background: 'transparent', border: '1px solid #333', borderRadius: 4, color: '#e06c75', fontSize: 12, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>&#x2715;</button>
+          </div>
+          <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-dim)', fontSize: 14 }}>
+            Ghost pane (not found in DB)
+          </div>
+        </div>
+      )
+    }
     return (
       <div
         key={pane.id}

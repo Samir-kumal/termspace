@@ -41,6 +41,21 @@ export async function invoke<T>(cmd: string, args?: Record<string, unknown>): Pr
     case 'pty_resize':
     case 'kill_terminal':
       return undefined as unknown as T;
+    case 'create_browser_pane':
+    case 'respawn_browser_pane':
+      return { id: `mock-bp-${Date.now()}`, workspaceId: args?.workspaceId || '', url: args?.url || 'about:blank' } as unknown as T;
+    case 'get_browser_panes':
+      return [] as unknown as T;
+    case 'resize_browser_pane':
+    case 'navigate_browser_pane':
+    case 'save_browser_pane_url':
+    case 'show_browser_pane':
+    case 'hide_browser_pane':
+    case 'destroy_browser_pane':
+    case 'browser_go_back':
+    case 'browser_go_forward':
+    case 'browser_reload':
+      return undefined as unknown as T;
     default:
       console.warn(`[Mock Tauri] Unhandled command: ${cmd}`);
       return undefined as unknown as T;

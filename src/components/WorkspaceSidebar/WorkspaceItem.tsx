@@ -6,12 +6,13 @@ interface Props {
   isActive: boolean
   canDelete: boolean
   isCollapsed?: boolean
+  terminalCount: number
   onClick: () => void
   onDelete: () => void
   onContextMenu?: (e: React.MouseEvent) => void
 }
 
-export function WorkspaceItem({ workspace, isActive, canDelete, isCollapsed, onClick, onDelete, onContextMenu }: Props) {
+export function WorkspaceItem({ workspace, isActive, canDelete, isCollapsed, terminalCount, onClick, onDelete, onContextMenu }: Props) {
   const [hovered, setHovered] = useState(false)
 
   return (
@@ -34,9 +35,20 @@ export function WorkspaceItem({ workspace, isActive, canDelete, isCollapsed, onC
     >
       <span style={{ fontSize: 16, flexShrink: 0 }}>{workspace.emoji}</span>
       {!isCollapsed && (
-        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
-          {workspace.name}
-        </span>
+        <div style={{ display: 'flex', alignItems: 'center', flex: 1, overflow: 'hidden', gap: 6 }}>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+            {workspace.name}
+          </span>
+          {terminalCount > 0 && (
+            <span style={{ 
+              fontSize: 10, background: isActive ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.06)', 
+              color: isActive ? 'var(--text-active)' : 'var(--text-dim)',
+              padding: '2px 6px', borderRadius: 10, fontWeight: 500, lineHeight: 1
+            }}>
+              {terminalCount}
+            </span>
+          )}
+        </div>
       )}
       {!isCollapsed && hovered && canDelete && (
         <button

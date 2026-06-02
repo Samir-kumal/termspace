@@ -101,6 +101,14 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
           setTimeout(() => searchInputRef.current?.focus(), 50)
           return false
         }
+
+        // Force explicit backspace handling to bypass any xterm/DOM swallowing
+        if (e.key === 'Backspace') {
+          // On macOS, \x7f (DEL) is standard for backspace, but sometimes \x08 is needed
+          // We will send \x7f explicitly.
+          invoke('write_pty', { terminalId, data: '\x7f' }).catch(console.error)
+          return false // Tell xterm to not process it natively
+        }
         
         const handled = keybindingHandlerRef.current(e)
         if (handled) return false // Tell xterm not to process this key
@@ -121,6 +129,7 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
 
     // send keystrokes to PTY
     const onDataDispose = xterm.onData((data) => {
+      console.log('XTERM DATA:', Array.from(data).map(c => c.charCodeAt(0)), JSON.stringify(data))
       invoke('write_pty', { terminalId, data }).catch(console.error)
     })
 

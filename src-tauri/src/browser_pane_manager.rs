@@ -103,6 +103,7 @@ impl BrowserPaneManager {
             .unwrap_or_else(|_| "about:blank".parse().expect("about:blank is a valid URL"));
 
         let builder = WebviewBuilder::new(format!("browser-pane-{}", id), WebviewUrl::External(target_url))
+            .transparent(true)
             .on_navigation(move |nav_url| {
                 // Returning `true` allows the navigation to proceed. We only
                 // observe it to keep the frontend's URL state in sync.

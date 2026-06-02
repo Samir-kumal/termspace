@@ -195,7 +195,7 @@ pub fn create_browser_pane(
     let window = app.get_webview_window("main").ok_or("no main window")?;
     browser
         .create(&window, &app, &id, &url, x, y, w, h)
-        .map_err(|e| e.to_string())?;
+        .map_err(|e| { println!(">>> RUST: create_browser_pane failed: {}", e); e.to_string() })?;
     db::create_browser_pane(&db.0.lock().unwrap(), &id, &workspace_id, &url)
         .map_err(|e| {
             browser.destroy(&id); // rollback native webview if DB insert fails

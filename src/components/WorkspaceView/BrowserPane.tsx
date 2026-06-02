@@ -13,6 +13,8 @@ interface Props {
   onToggleMaximize: () => void
 }
 
+const HEADER_HEIGHT = 36
+
 export function BrowserPane({
   browserPaneId, initialUrl, isActive, isMaximized: _isMaximized,
   onFocus, onClose, onSplit, onToggleMaximize,
@@ -20,25 +22,33 @@ export function BrowserPane({
   const [url, setUrl] = useState(initialUrl)
   const [inputUrl, setInputUrl] = useState(initialUrl)
   const [isEditingUrl, setIsEditingUrl] = useState(false)
-  const holeRef = useRef<HTMLDivElement>(null)
+  const containerRef = useRef<HTMLDivElement>(null)
 
-  // Sync native webview position whenever the hole div's bounds change
+  // Sync native webview position whenever the container bounds change.
+  // Measure the container (not the hole) and offset by HEADER_HEIGHT — this
+  // is robust against the hole having height=0 before the panel fully sizes up.
   const syncBounds = useCallback(() => {
-    if (!holeRef.current) return
-    const rect = holeRef.current.getBoundingClientRect()
-    if (rect.width < 1 || rect.height < 1) return
+    if (!containerRef.current) return
+    const rect = containerRef.current.getBoundingClientRect()
+    if (rect.width < 1 || rect.height <= HEADER_HEIGHT) return
+    
+    // Tauri's Webview::set_position uses coordinates relative to the window frame (including titlebar).
+    // React's getBoundingClientRect is relative to the client area (excluding titlebar).
+    // We add the titlebar height (outerHeight - innerHeight) to bridge the gap.
+    const titlebarHeight = window.outerHeight - window.innerHeight
+    
     invoke('resize_browser_pane', {
       id: browserPaneId,
       x: rect.left,
-      y: rect.top,
+      y: rect.top + HEADER_HEIGHT + titlebarHeight,
       w: rect.width,
-      h: rect.height,
+      h: rect.height - HEADER_HEIGHT,
     }).catch(() => {}) // non-fatal, next resize will retry
   }, [browserPaneId])
 
   // ResizeObserver — fires on drag-handle resize
   useLayoutEffect(() => {
-    const el = holeRef.current
+    const el = containerRef.current
     if (!el) return
     const ro = new ResizeObserver(syncBounds)
     ro.observe(el)
@@ -83,6 +93,7 @@ export function BrowserPane({
 
   return (
     <div
+      ref={containerRef}
       style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}
       onClick={onFocus}
     >
@@ -151,11 +162,8 @@ export function BrowserPane({
         <button onClick={(e) => { e.stopPropagation(); onClose() }} style={{ ...btnStyle, color: '#e06c75' }} title="Close">&#x2715;</button>
       </div>
 
-      {/* Transparent hole — native webview floats here */}
-      <div
-        ref={holeRef}
-        style={{ flex: 1, minHeight: 0, minWidth: 0, background: 'transparent' }}
-      />
+      {/* Transparent hole — native webview floats here, positioned via containerRef + HEADER_HEIGHT offset */}
+      <div style={{ flex: 1, minHeight: 0, minWidth: 0, background: 'transparent' }} />
     </div>
   )
 }

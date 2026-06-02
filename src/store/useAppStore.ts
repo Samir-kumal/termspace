@@ -122,8 +122,7 @@ export const useAppStore = create<AppState>()(
                 return validIds.has(node.terminalId) ? node : null
               }
               if (node.type === 'browser') {
-                // browser pane IDs are validated separately when browser panes load
-                return node
+                return null
               }
               if (node.type === 'split') {
                 const newChildren = node.children.map(cleanLayout).filter(Boolean) as LayoutNode[]

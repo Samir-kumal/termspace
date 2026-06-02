@@ -10,7 +10,7 @@ import { ContextMenu } from './components/ui/ContextMenu'
 import { ToastContainer } from './components/ui/ToastContainer'
 import { CommandPalette } from './components/CommandPalette/CommandPalette'
 import { useGlobalKeybindings } from './hooks/useGlobalKeybindings'
-import { BrowserPane, Workspace, Terminal } from './types'
+import { Workspace, Terminal } from './types'
 import { Group, Panel, Separator, usePanelRef } from 'react-resizable-panels'
 import { AnimatePresence } from 'framer-motion'
 
@@ -46,7 +46,6 @@ export default function App() {
   const setActiveWorkspaceId = useAppStore((s) => s.setActiveWorkspaceId)
   const setTerminals = useAppStore((s) => s.setTerminals)
   const addTerminal = useAppStore((s) => s.addTerminal)
-  const setBrowserPanes = useAppStore((s) => s.setBrowserPanes)
   const removeWorkspace = useAppStore((s) => s.removeWorkspace)
   const setActiveTerminalId = useAppStore((s) => s.setActiveTerminalId)
 
@@ -98,27 +97,6 @@ export default function App() {
     if (saved.length === 0) {
       setTerminals(workspaceId, [])
       await spawnAndAddTerminal(workspaceId)
-
-      // Load and restore browser panes for this workspace
-      const savedBrowserPanes = await withTimeout(
-        invoke<BrowserPane[]>('get_browser_panes', { workspaceId }),
-        5000, 'get_browser_panes'
-      ).catch(() => [] as BrowserPane[])  // non-fatal — continue without browser panes
-
-      const restoredBrowserPanes: BrowserPane[] = []
-      for (const bp of savedBrowserPanes) {
-        try {
-          await withTimeout(
-            invoke('respawn_browser_pane', { id: bp.id, url: bp.url, x: -10000, y: -10000, w: 800, h: 600 }),
-            5000, 'respawn_browser_pane'
-          )
-          restoredBrowserPanes.push(bp)
-        } catch (err) {
-          console.warn('Failed to restore browser pane, skipping:', bp.id, err)
-        }
-      }
-      setBrowserPanes(workspaceId, restoredBrowserPanes)
-
       return
     }
     // Spawn terminals serially
@@ -134,26 +112,6 @@ export default function App() {
     }
     setTerminals(workspaceId, spawned)
     setActiveTerminalId(spawned[0]?.id ?? null)
-
-    // Load and restore browser panes for this workspace
-    const savedBrowserPanes = await withTimeout(
-      invoke<BrowserPane[]>('get_browser_panes', { workspaceId }),
-      5000, 'get_browser_panes'
-    ).catch(() => [] as BrowserPane[])  // non-fatal — continue without browser panes
-
-    const restoredBrowserPanes: BrowserPane[] = []
-    for (const bp of savedBrowserPanes) {
-      try {
-        await withTimeout(
-          invoke('respawn_browser_pane', { id: bp.id, url: bp.url, x: -10000, y: -10000, w: 800, h: 600 }),
-          5000, 'respawn_browser_pane'
-        )
-        restoredBrowserPanes.push(bp)
-      } catch (err) {
-        console.warn('Failed to restore browser pane, skipping:', bp.id, err)
-      }
-    }
-    setBrowserPanes(workspaceId, restoredBrowserPanes)
   }
 
   useEffect(() => {

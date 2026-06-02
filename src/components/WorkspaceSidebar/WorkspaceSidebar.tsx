@@ -16,6 +16,7 @@ interface Props {
 export function WorkspaceSidebar({ isCollapsed, onToggleCollapse, onAddWorkspace, onSelectWorkspace, onDeleteWorkspace, onEditWorkspace, onOpenSettings }: Props) {
   const workspaces = useAppStore((s) => s.workspaces)
   const activeWorkspaceId = useAppStore((s) => s.activeWorkspaceId)
+  const terminalsByWorkspace = useAppStore((s) => s.terminalsByWorkspace)
   const showContextMenu = useAppStore((s) => s.showContextMenu)
 
   return (
@@ -82,6 +83,7 @@ export function WorkspaceSidebar({ isCollapsed, onToggleCollapse, onAddWorkspace
               isActive={ws.id === activeWorkspaceId}
               canDelete={workspaces.length > 1}
               isCollapsed={isCollapsed}
+              terminalCount={terminalsByWorkspace[ws.id]?.length || 0}
               onClick={() => onSelectWorkspace(ws.id)}
               onDelete={() => onDeleteWorkspace(ws.id)}
               onContextMenu={(e) => {

@@ -50,7 +50,7 @@
 
 html, body, #root {
   width: 100%; height: 100%; overflow: hidden;
-  background: var(--bg-main);
+  background: transparent;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   color: var(--text-active);
   -webkit-user-select: none;
