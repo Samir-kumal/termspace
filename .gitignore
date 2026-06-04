@@ -1,6 +1,10 @@
 # Tauri build artifacts
 src-tauri/target/
 
+# Signing keys (never commit these)
+tauri.updater.key
+tauri.updater.key.pub
+
 # Logs
 logs
 *.log
