@@ -22,7 +22,6 @@ export function WorkspaceItem({ workspace, isActive, canDelete, isCollapsed, ter
   return (
     <div
       onClick={onClick}
-      title={isCollapsed ? workspace.name : undefined}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onContextMenu={onContextMenu}
@@ -46,16 +45,49 @@ export function WorkspaceItem({ workspace, isActive, canDelete, isCollapsed, ter
         }}>
           <IconComponent size={14} strokeWidth={2} />
         </div>
-        {workspace.notificationCount && workspace.notificationCount > 0 && isCollapsed && (
+        {(workspace.notificationCount ?? 0) > 0 && isCollapsed && (
           <span style={{
             position: 'absolute', top: -4, right: -4, background: '#ef4444', color: 'white',
             fontSize: 9, fontWeight: 'bold', padding: '1px 4px', borderRadius: 10,
             lineHeight: 1, minWidth: 14, textAlign: 'center', boxShadow: '0 0 0 2px var(--bg-sidebar)'
           }}>
-            {workspace.notificationCount > 99 ? '99+' : workspace.notificationCount}
+            {workspace.notificationCount! > 99 ? '99+' : workspace.notificationCount}
           </span>
         )}
       </div>
+
+      {isCollapsed && hovered && (
+        <div style={{
+          position: 'absolute',
+          left: '100%',
+          marginLeft: '12px',
+          background: 'var(--bg-primary)',
+          color: 'var(--text-active)',
+          padding: '6px 10px',
+          borderRadius: '6px',
+          fontSize: '12px',
+          fontWeight: 500,
+          whiteSpace: 'nowrap',
+          zIndex: 50,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+          border: '1px solid var(--border-inactive)',
+          pointerEvents: 'none'
+        }}>
+          {workspace.name}
+          <div style={{
+            position: 'absolute',
+            left: '-4px',
+            top: '50%',
+            transform: 'translateY(-50%) rotate(45deg)',
+            width: '8px',
+            height: '8px',
+            background: 'var(--bg-primary)',
+            borderLeft: '1px solid var(--border-inactive)',
+            borderBottom: '1px solid var(--border-inactive)',
+          }} />
+        </div>
+      )}
+
       {!isCollapsed && (
         <div style={{ display: 'flex', alignItems: 'center', flex: 1, overflow: 'hidden' }}>
           <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
@@ -63,12 +95,12 @@ export function WorkspaceItem({ workspace, isActive, canDelete, isCollapsed, ter
           </span>
         </div>
       )}
-      {!isCollapsed && workspace.notificationCount && workspace.notificationCount > 0 && (
+      {!isCollapsed && (workspace.notificationCount ?? 0) > 0 && (
         <span style={{
           background: '#ef4444', color: 'white', fontSize: 10, fontWeight: 'bold',
           padding: '2px 6px', borderRadius: 10, lineHeight: 1
         }}>
-          {workspace.notificationCount > 99 ? '99+' : workspace.notificationCount}
+          {workspace.notificationCount! > 99 ? '99+' : workspace.notificationCount}
         </span>
       )}
       {!isCollapsed && (!workspace.notificationCount || workspace.notificationCount === 0) && terminalCount > 0 && (
