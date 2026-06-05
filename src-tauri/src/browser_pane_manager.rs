@@ -79,6 +79,7 @@ impl BrowserPaneManager {
         w: f64,
         h: f64,
         workspace_id: Option<&str>,
+        adblock_enabled: bool,
     ) -> Result<(), tauri::Error> {
         // Reject non-positive dimensions. This is a transient startup race
         // (React mounts the placeholder before its rect has been measured), so
@@ -136,20 +137,60 @@ impl BrowserPaneManager {
             let _ = std::fs::create_dir_all(&data_dir);
         }
 
-        let init_js = r#"
-            window.addEventListener('contextmenu', (e) => {
+        let init_js = format!(r#"
+            window.__termspace_adblock_enabled = {};
+            
+            const adDomains = ['doubleclick.net', 'googleadservices.com', 'googlesyndication.com', 'ads.twitter.com', 'facebook.com/tr/', 'taboola.com', 'outbrain.com', 'criteo.com', 'adsystem.com', 'adserv.com', 'adnxs.com', 'ads-twitter.com'];
+            const origFetch = window.fetch;
+            window.fetch = async function(...args) {{
+                if (window.__termspace_adblock_enabled) {{
+                    const url = typeof args[0] === 'string' ? args[0] : (args[0] && args[0].url ? args[0].url : '');
+                    if (adDomains.some(d => url.includes(d))) {{
+                        return new Response('', {{status: 200}});
+                    }}
+                }}
+                return origFetch.apply(this, args);
+            }};
+            const origXhrOpen = XMLHttpRequest.prototype.open;
+            XMLHttpRequest.prototype.open = function(...args) {{
+                if (window.__termspace_adblock_enabled) {{
+                    const url = args[1] || '';
+                    if (typeof url === 'string' && adDomains.some(d => url.includes(d))) {{
+                        args[1] = 'data:,';
+                    }}
+                }}
+                return origXhrOpen.apply(this, args);
+            }};
+
+            const adSelectors = ['.ad', '.ads', '.advertisement', '#ads', 'ins.adsbygoogle', 'div[id^="google_ads_"]', 'div[class*="Sponsored"]', '.taboola', '.outbrain'];
+            const style = document.createElement('style');
+            style.textContent = adSelectors.map(s => s + '{{display:none !important;}}').join('\n');
+            
+            document.addEventListener('DOMContentLoaded', () => {{
+                if (window.__termspace_adblock_enabled) {{
+                    document.documentElement.appendChild(style);
+                }}
+            }});
+
+            const observer = new MutationObserver(() => {{
+                if (!window.__termspace_adblock_enabled) return;
+                if (!document.head.contains(style)) document.head.appendChild(style);
+            }});
+            observer.observe(document.documentElement, {{childList: true, subtree: true}});
+
+            window.addEventListener('contextmenu', (e) => {{
                 let target = e.target;
                 let href = null;
-                while (target && target.tagName !== 'A') {
+                while (target && target.tagName !== 'A') {{
                     target = target.parentElement;
-                }
-                if (target && target.href) {
+                }}
+                if (target && target.href) {{
                     href = target.href;
-                }
-                if (href) {
+                }}
+                if (href) {{
                     e.preventDefault();
                     e.stopPropagation();
-                    const url = `termspace-ctx://menu?url=${encodeURIComponent(href)}&x=${e.clientX}&y=${e.clientY}`;
+                    const url = `termspace-ctx://menu?url=${{encodeURIComponent(href)}}&x=${{e.clientX}}&y=${{e.clientY}}`;
                     
                     // Create an iframe to navigate without replacing the top window state
                     const iframe = document.createElement('iframe');
@@ -157,9 +198,9 @@ impl BrowserPaneManager {
                     iframe.src = url;
                     document.body.appendChild(iframe);
                     setTimeout(() => iframe.remove(), 100);
-                }
-            }, true);
-        "#;
+                }}
+            }}, true);
+        "#, if adblock_enabled { "true" } else { "false" });
 
         let builder = WebviewBuilder::new(
             format!("browser-pane-{}", id),
@@ -399,6 +440,14 @@ impl BrowserPaneManager {
         let mut panes = self.panes.lock().unwrap();
         if let Some(entry) = panes.remove(id) {
             let _ = entry.webview.close();
+        }
+    }
+
+    pub fn toggle_adblock(&self, id: &str, enabled: bool) {
+        let panes = self.panes.lock().unwrap();
+        if let Some(entry) = panes.get(id) {
+            let js = format!("window.__termspace_adblock_enabled = {};", enabled);
+            let _ = entry.webview.eval(&js);
         }
     }
 }

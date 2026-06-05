@@ -309,6 +309,7 @@ pub fn create_browser_pane(
     y: f64,
     w: f64,
     h: f64,
+    adblock_enabled: bool,
 ) -> Result<db::BrowserPane, String> {
     let id = uuid::Uuid::new_v4().to_string();
     let keys: Vec<String> = app.windows().keys().cloned().collect();
@@ -316,7 +317,7 @@ pub fn create_browser_pane(
         .or_else(|| app.windows().into_values().next())
         .ok_or(format!("no main window. Available: {:?}", keys))?;
     browser
-        .create(&window, &app, &id, &url, x, y, w, h, Some(&workspace_id))
+        .create(&window, &app, &id, &url, x, y, w, h, Some(&workspace_id), adblock_enabled)
         .map_err(|e| {
             println!(">>> RUST: create_browser_pane failed: {}", e);
             e.to_string()
@@ -337,6 +338,7 @@ pub fn spawn_ephemeral_browser_pane(
     y: f64,
     w: f64,
     h: f64,
+    adblock_enabled: bool,
 ) -> Result<(), String> {
     let keys: Vec<String> = app.windows().keys().cloned().collect();
     println!(">>> RUST: spawn_ephemeral_browser_pane windows keys: {:?}", keys);
@@ -345,7 +347,7 @@ pub fn spawn_ephemeral_browser_pane(
         .or_else(|| app.windows().into_values().next())
         .ok_or(format!("no main window. Available: {:?}", keys))?;
     browser
-        .create(&window, &app, &id, &url, x, y, w, h, None)
+        .create(&window, &app, &id, &url, x, y, w, h, None, adblock_enabled)
         .map_err(|e| e.to_string())
 }
 
@@ -368,6 +370,7 @@ pub fn respawn_browser_pane(
     y: f64,
     w: f64,
     h: f64,
+    adblock_enabled: bool,
 ) -> Result<(), String> {
     let keys: Vec<String> = app.windows().keys().cloned().collect();
     let window = app.get_window("main")
@@ -378,7 +381,7 @@ pub fn respawn_browser_pane(
     // For now we pass None, but this means respawned panes share a default profile.
     // A better fix would fetch the workspace_id from db.
     browser
-        .create(&window, &app, &id, &url, x, y, w, h, None)
+        .create(&window, &app, &id, &url, x, y, w, h, None, adblock_enabled)
         .map_err(|e| e.to_string())
 }
 
@@ -450,6 +453,12 @@ pub fn browser_go_forward(browser: State<BrowserPaneManager>, id: String) -> Res
 #[tauri::command]
 pub fn browser_reload(browser: State<BrowserPaneManager>, id: String) -> Result<(), String> {
     browser.reload(&id);
+    Ok(())
+}
+
+#[tauri::command]
+pub fn browser_toggle_adblock(browser: State<BrowserPaneManager>, id: String, enabled: bool) -> Result<(), String> {
+    browser.toggle_adblock(&id, enabled);
     Ok(())
 }
 

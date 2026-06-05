@@ -58,6 +58,7 @@ export interface Settings {
   timeFormat: '12h' | '24h'
   keybindings: Keybindings
   autosave: boolean
+  adblockEnabled?: boolean
 }
 
 export type LayoutDirection = 'horizontal' | 'vertical'

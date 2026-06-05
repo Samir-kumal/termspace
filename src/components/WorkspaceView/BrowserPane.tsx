@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useLayoutEffect, useCallback } from 'react'
+import { Shield, ShieldCheck } from 'lucide-react'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '../../utils/tauri'
 import { useAppStore } from '../../store/useAppStore'
@@ -38,6 +39,9 @@ export function BrowserPane({
   const [showHistory, setShowHistory] = useState(false)
   const [showBookmarks, setShowBookmarks] = useState(false)
   const isModalOpen = useAppStore(s => s.isModalOpen)
+  
+  const adblockEnabled = useAppStore(s => s.settings.adblockEnabled ?? true)
+  const updateSettings = useAppStore(s => s.updateSettings)
   
   // The url/inputUrl now reflect the *active* tab
   const activeTab = tabs.find(t => t.id === activeTabId) || tabs[0]
@@ -131,6 +135,13 @@ export function BrowserPane({
     hiddenTabsRef.current.delete(activeTabId)
   }, [activeTabId, tabs, isHidden])
 
+  // Keep adblock setting synced with webview
+  useEffect(() => {
+    tabs.forEach(tab => {
+        invoke('browser_toggle_adblock', { id: tab.id, enabled: adblockEnabled }).catch(() => {})
+    })
+  }, [adblockEnabled, tabs])
+
   // Sync when activeTabId changes or wake up discarded tab
   useEffect(() => {
     if (activeTab) {
@@ -143,6 +154,7 @@ export function BrowserPane({
           id: activeTab.id,
           url: activeTab.url,
           x: -10000, y: -10000, w: 800, h: 600,
+          adblockEnabled,
         }).then(() => {
           setTabs(current => current.map(t => t.id === activeTab.id ? { ...t, isDiscarded: false } : t))
           setTimeout(syncBounds, 50)
@@ -362,6 +374,7 @@ export function BrowserPane({
         id: newTabId,
         url: targetUrl,
         x: -10000, y: -10000, w: 800, h: 600,
+        adblockEnabled,
       })
       setTabs(currentTabs => [...currentTabs, { id: newTabId, url: targetUrl, title: 'New Tab' }])
       setActiveTabId(newTabId)
@@ -553,6 +566,16 @@ export function BrowserPane({
               </span>
             </div>
           )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              updateSettings({ adblockEnabled: !adblockEnabled })
+            }}
+            style={{ ...navBtnStyle, width: 24, height: 24, color: adblockEnabled ? '#e8eaed' : '#9aa0a6' }}
+            title={adblockEnabled ? "Disable Adblock" : "Enable Adblock"}
+          >
+            {adblockEnabled ? <ShieldCheck size={14} /> : <Shield size={14} />}
+          </button>
           <button 
             onClick={(e) => {
               e.stopPropagation()

@@ -105,6 +105,7 @@ export const useAppStore = create<AppState>()(
         terminalFontFamily: '"JetBrains Mono", "Fira Code", Menlo, monospace',
         timeFormat: '24h',
         autosave: false,
+        adblockEnabled: true,
         keybindings: {
           newTerminal: 'CmdOrCtrl+T',
           closeTerminal: 'CmdOrCtrl+W',
