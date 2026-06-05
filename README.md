@@ -12,7 +12,9 @@ Termspace lets you create named workspaces, each with a fully configurable grid 
 
 - **Workspaces** — Named terminal sessions you can create, rename, and delete
 - **Split Pane Layout** — Arbitrary horizontal/vertical splits with resizable panels
+- **Terminal, Browser & Editor Panes** — Seamlessly mix terminal instances, an embedded web browser, and a code editor with a file tree and markdown preview
 - **Drag-and-Drop Reordering** — Drag terminals into new positions within a workspace
+- **Command Palette (Cmd+K)** — Quick action menu for navigating workspaces and managing panes
 - **Custom Keybindings** — Configure global shortcuts for core actions
 - **Search (Ctrl+F)** — Full-text search within terminal output
 - **Context Menus** — Right-click terminals or workspaces for quick actions
@@ -79,8 +81,10 @@ See [open issues](../../issues) for planned features and known bugs.
 | Search (Ctrl+F) | ✅ Done |
 | Context menus | ✅ Done |
 | Toast notifications | ✅ Done |
+| Command palette (Cmd+K) | ✅ Done |
+| Browser integration | ✅ Done |
+| Editor integration (File Tree & Markdown) | ✅ Done |
 | Terminal tabs overlay | 🗓 Planned |
-| Command palette (Cmd+K) | 🗓 Planned |
 | State persistence | 🗓 Planned |
 
 ## Versioning
