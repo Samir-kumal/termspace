@@ -41,6 +41,7 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
   const updateLayoutSizes = useAppStore((s) => s.updateLayoutSizes)
   const layout = useAppStore((s) => s.layoutsByWorkspace[workspaceId])
   const browserPanes = useAppStore((s) => s.browserPanesByWorkspace[workspaceId] ?? EMPTY_BROWSER_PANES)
+  const activeWorkspaceId = useAppStore((s) => s.activeWorkspaceId)
 
   if ((terminals.length === 0 && browserPanes.length === 0) || !layout) return null
 
@@ -134,7 +135,7 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
           initialUrl={pane.url}
           isActive={pane.id === activeTerminalId}
           isMaximized={maximizedTerminalId === pane.id}
-          isHidden={isMaximized && maximizedTerminalId !== pane.id}
+          isHidden={(isMaximized && maximizedTerminalId !== pane.id) || workspaceId !== activeWorkspaceId}
           onFocus={() => onFocus(pane.id)}
           onClose={() => {
             if (maximizedTerminalId === pane.id) setMaximizedTerminalId(null)

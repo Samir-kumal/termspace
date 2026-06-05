@@ -125,6 +125,8 @@ export function BrowserPane({
 
     if (!isHidden) {
       invoke('show_browser_pane', { id: activeTabId }).catch(() => {})
+    } else {
+      invoke('hide_browser_pane', { id: activeTabId }).catch(() => {})
     }
     hiddenTabsRef.current.delete(activeTabId)
   }, [activeTabId, tabs, isHidden])
