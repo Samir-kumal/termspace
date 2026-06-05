@@ -91,27 +91,55 @@ pub fn get_workspaces(conn: &Connection) -> Result<Vec<Workspace>> {
     let mut stmt = conn.prepare(
         "SELECT id,name,emoji,color,position,created_at FROM workspaces ORDER BY position",
     )?;
-    let rows = stmt.query_map([], |r| Ok(Workspace {
-        id: r.get(0)?, name: r.get(1)?, emoji: r.get(2)?,
-        color: r.get(3)?, position: r.get(4)?, created_at: r.get(5)?,
-    }))?.collect();
+    let rows = stmt
+        .query_map([], |r| {
+            Ok(Workspace {
+                id: r.get(0)?,
+                name: r.get(1)?,
+                emoji: r.get(2)?,
+                color: r.get(3)?,
+                position: r.get(4)?,
+                created_at: r.get(5)?,
+            })
+        })?
+        .collect();
     rows
 }
 
-pub fn create_workspace(conn: &Connection, name: &str, emoji: &str, color: &str) -> Result<Workspace> {
+pub fn create_workspace(
+    conn: &Connection,
+    name: &str,
+    emoji: &str,
+    color: &str,
+) -> Result<Workspace> {
     let id = uuid::Uuid::new_v4().to_string();
     let position: i64 = conn.query_row(
-        "SELECT COALESCE(MAX(position)+1,0) FROM workspaces", [], |r| r.get(0),
+        "SELECT COALESCE(MAX(position)+1,0) FROM workspaces",
+        [],
+        |r| r.get(0),
     )?;
     let created_at = now_ms();
     conn.execute(
         "INSERT INTO workspaces (id,name,emoji,color,position,created_at) VALUES (?1,?2,?3,?4,?5,?6)",
         params![id, name, emoji, color, position, created_at],
     )?;
-    Ok(Workspace { id, name: name.into(), emoji: emoji.into(), color: color.into(), position, created_at })
+    Ok(Workspace {
+        id,
+        name: name.into(),
+        emoji: emoji.into(),
+        color: color.into(),
+        position,
+        created_at,
+    })
 }
 
-pub fn update_workspace(conn: &Connection, id: &str, name: &str, emoji: &str, color: &str) -> Result<()> {
+pub fn update_workspace(
+    conn: &Connection,
+    id: &str,
+    name: &str,
+    emoji: &str,
+    color: &str,
+) -> Result<()> {
     conn.execute(
         "UPDATE workspaces SET name=?1,emoji=?2,color=?3 WHERE id=?4",
         params![name, emoji, color, id],
@@ -129,18 +157,34 @@ pub fn get_terminals(conn: &Connection, workspace_id: &str) -> Result<Vec<Termin
         "SELECT id,workspace_id,title,shell,cwd,position,size_percent,created_at
          FROM terminals WHERE workspace_id=?1 ORDER BY position",
     )?;
-    let rows = stmt.query_map(params![workspace_id], |r| Ok(Terminal {
-        id: r.get(0)?, workspace_id: r.get(1)?, title: r.get(2).unwrap_or(None), shell: r.get(3)?,
-        cwd: r.get(4)?, position: r.get(5)?, size_percent: r.get(6)?, created_at: r.get(7)?,
-    }))?.collect();
+    let rows = stmt
+        .query_map(params![workspace_id], |r| {
+            Ok(Terminal {
+                id: r.get(0)?,
+                workspace_id: r.get(1)?,
+                title: r.get(2).unwrap_or(None),
+                shell: r.get(3)?,
+                cwd: r.get(4)?,
+                position: r.get(5)?,
+                size_percent: r.get(6)?,
+                created_at: r.get(7)?,
+            })
+        })?
+        .collect();
     rows
 }
 
-
-pub fn create_terminal_with_id(conn: &Connection, id: &str, workspace_id: &str, shell: &str, cwd: &str) -> Result<Terminal> {
+pub fn create_terminal_with_id(
+    conn: &Connection,
+    id: &str,
+    workspace_id: &str,
+    shell: &str,
+    cwd: &str,
+) -> Result<Terminal> {
     let position: i64 = conn.query_row(
         "SELECT COALESCE(MAX(position)+1,0) FROM terminals WHERE workspace_id=?1",
-        params![workspace_id], |r| r.get(0),
+        params![workspace_id],
+        |r| r.get(0),
     )?;
     let created_at = now_ms();
     conn.execute(
@@ -148,11 +192,28 @@ pub fn create_terminal_with_id(conn: &Connection, id: &str, workspace_id: &str, 
          VALUES (?1,?2,NULL,?3,?4,?5,?6,?7)",
         params![id, workspace_id, shell, cwd, position, 50.0f64, created_at],
     )?;
-    Ok(Terminal { id: id.into(), workspace_id: workspace_id.into(), title: None, shell: shell.into(), cwd: cwd.into(), position, size_percent: 50.0, created_at })
+    Ok(Terminal {
+        id: id.into(),
+        workspace_id: workspace_id.into(),
+        title: None,
+        shell: shell.into(),
+        cwd: cwd.into(),
+        position,
+        size_percent: 50.0,
+        created_at,
+    })
 }
 
 pub fn rename_terminal(conn: &Connection, id: &str, title: &str) -> Result<()> {
-    conn.execute("UPDATE terminals SET title=?1 WHERE id=?2", params![title, id])?;
+    conn.execute(
+        "UPDATE terminals SET title=?1 WHERE id=?2",
+        params![title, id],
+    )?;
+    Ok(())
+}
+
+pub fn update_terminal_cwd(conn: &Connection, id: &str, cwd: &str) -> Result<()> {
+    conn.execute("UPDATE terminals SET cwd=?1 WHERE id=?2", params![cwd, id])?;
     Ok(())
 }
 
@@ -162,7 +223,10 @@ pub fn delete_terminal(conn: &Connection, id: &str) -> Result<()> {
 }
 
 pub fn save_scrollback(conn: &Connection, terminal_id: &str, lines: &[String]) -> Result<()> {
-    conn.execute("DELETE FROM scrollback WHERE terminal_id=?1", params![terminal_id])?;
+    conn.execute(
+        "DELETE FROM scrollback WHERE terminal_id=?1",
+        params![terminal_id],
+    )?;
     let start = lines.len().saturating_sub(5000);
     for (i, line) in lines[start..].iter().enumerate() {
         conn.execute(
@@ -174,39 +238,62 @@ pub fn save_scrollback(conn: &Connection, terminal_id: &str, lines: &[String]) -
 }
 
 pub fn load_scrollback(conn: &Connection, terminal_id: &str) -> Result<Vec<String>> {
-    let mut stmt = conn.prepare(
-        "SELECT data FROM scrollback WHERE terminal_id=?1 ORDER BY line_index",
-    )?;
-    let rows = stmt.query_map(params![terminal_id], |r| r.get(0))?.collect();
+    let mut stmt =
+        conn.prepare("SELECT data FROM scrollback WHERE terminal_id=?1 ORDER BY line_index")?;
+    let rows = stmt
+        .query_map(params![terminal_id], |r| r.get(0))?
+        .collect();
     rows
 }
 
-pub fn create_browser_pane(conn: &Connection, id: &str, workspace_id: &str, url: &str) -> Result<BrowserPane> {
+pub fn create_browser_pane(
+    conn: &Connection,
+    id: &str,
+    workspace_id: &str,
+    url: &str,
+) -> Result<BrowserPane> {
     let position: i64 = conn.query_row(
         "SELECT COALESCE(MAX(position)+1,0) FROM browser_panes WHERE workspace_id=?1",
-        params![workspace_id], |r| r.get(0),
+        params![workspace_id],
+        |r| r.get(0),
     )?;
     let created_at = now_ms();
     conn.execute(
         "INSERT INTO browser_panes (id,workspace_id,url,position,created_at) VALUES (?1,?2,?3,?4,?5)",
         params![id, workspace_id, url, position, created_at],
     )?;
-    Ok(BrowserPane { id: id.into(), workspace_id: workspace_id.into(), url: url.into(), position, created_at })
+    Ok(BrowserPane {
+        id: id.into(),
+        workspace_id: workspace_id.into(),
+        url: url.into(),
+        position,
+        created_at,
+    })
 }
 
 pub fn get_browser_panes(conn: &Connection, workspace_id: &str) -> Result<Vec<BrowserPane>> {
     let mut stmt = conn.prepare(
         "SELECT id,workspace_id,url,position,created_at FROM browser_panes WHERE workspace_id=?1 ORDER BY position",
     )?;
-    let rows = stmt.query_map(params![workspace_id], |r| Ok(BrowserPane {
-        id: r.get(0)?, workspace_id: r.get(1)?, url: r.get(2)?,
-        position: r.get(3)?, created_at: r.get(4)?,
-    }))?.collect();
+    let rows = stmt
+        .query_map(params![workspace_id], |r| {
+            Ok(BrowserPane {
+                id: r.get(0)?,
+                workspace_id: r.get(1)?,
+                url: r.get(2)?,
+                position: r.get(3)?,
+                created_at: r.get(4)?,
+            })
+        })?
+        .collect();
     rows
 }
 
 pub fn update_browser_pane_url(conn: &Connection, id: &str, url: &str) -> Result<()> {
-    conn.execute("UPDATE browser_panes SET url=?1 WHERE id=?2", params![url, id])?;
+    conn.execute(
+        "UPDATE browser_panes SET url=?1 WHERE id=?2",
+        params![url, id],
+    )?;
     Ok(())
 }
 
@@ -261,7 +348,8 @@ mod tests {
                 position     INTEGER NOT NULL DEFAULT 0,
                 created_at   INTEGER NOT NULL
             );",
-        ).unwrap();
+        )
+        .unwrap();
         conn
     }
 
@@ -296,10 +384,11 @@ mod tests {
             params!["ws-1", "Work", "🔥", "#e8a045", 0i64, 1_000_000i64],
         ).unwrap();
         create_browser_pane(&conn, "bp-1", "ws-1", "http://localhost:3000").unwrap();
-        conn.execute("DELETE FROM workspaces WHERE id=?1", params!["ws-1"]).unwrap();
-        let count: i64 = conn.query_row(
-            "SELECT count(*) FROM browser_panes", [], |r| r.get(0)
-        ).unwrap();
+        conn.execute("DELETE FROM workspaces WHERE id=?1", params!["ws-1"])
+            .unwrap();
+        let count: i64 = conn
+            .query_row("SELECT count(*) FROM browser_panes", [], |r| r.get(0))
+            .unwrap();
         assert_eq!(count, 0);
     }
 
@@ -337,19 +426,33 @@ mod tests {
             "INSERT INTO workspaces (id,name,emoji,color,position,created_at)
              VALUES (?1,?2,?3,?4,?5,?6)",
             params!["ws-1", "Work", "🔥", "#e8a045", 0i64, 1_000_000i64],
-        ).unwrap();
+        )
+        .unwrap();
         let name: String = conn
-            .query_row("SELECT name FROM workspaces WHERE id=?1", params!["ws-1"], |r| r.get(0))
+            .query_row(
+                "SELECT name FROM workspaces WHERE id=?1",
+                params!["ws-1"],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(name, "Work");
 
-        conn.execute("UPDATE workspaces SET name=?1 WHERE id=?2", params!["Updated", "ws-1"]).unwrap();
+        conn.execute(
+            "UPDATE workspaces SET name=?1 WHERE id=?2",
+            params!["Updated", "ws-1"],
+        )
+        .unwrap();
         let updated: String = conn
-            .query_row("SELECT name FROM workspaces WHERE id=?1", params!["ws-1"], |r| r.get(0))
+            .query_row(
+                "SELECT name FROM workspaces WHERE id=?1",
+                params!["ws-1"],
+                |r| r.get(0),
+            )
             .unwrap();
         assert_eq!(updated, "Updated");
 
-        conn.execute("DELETE FROM workspaces WHERE id=?1", params!["ws-1"]).unwrap();
+        conn.execute("DELETE FROM workspaces WHERE id=?1", params!["ws-1"])
+            .unwrap();
         let count: i64 = conn
             .query_row("SELECT count(*) FROM workspaces", [], |r| r.get(0))
             .unwrap();
@@ -363,13 +466,16 @@ mod tests {
             "INSERT INTO workspaces (id,name,emoji,color,position,created_at)
              VALUES (?1,?2,?3,?4,?5,?6)",
             params!["ws-1", "Work", "🔥", "#e8a045", 0i64, 1_000_000i64],
-        ).unwrap();
+        )
+        .unwrap();
         conn.execute(
             "INSERT INTO terminals (id,workspace_id,shell,cwd,position,size_percent,created_at)
              VALUES (?1,?2,?3,?4,?5,?6,?7)",
             params!["t-1", "ws-1", "zsh", "/tmp", 0i64, 50.0f64, 1_000_001i64],
-        ).unwrap();
-        conn.execute("DELETE FROM workspaces WHERE id=?1", params!["ws-1"]).unwrap();
+        )
+        .unwrap();
+        conn.execute("DELETE FROM workspaces WHERE id=?1", params!["ws-1"])
+            .unwrap();
         let count: i64 = conn
             .query_row("SELECT count(*) FROM terminals", [], |r| r.get(0))
             .unwrap();
@@ -383,17 +489,20 @@ mod tests {
             "INSERT INTO workspaces (id,name,emoji,color,position,created_at)
              VALUES (?1,?2,?3,?4,?5,?6)",
             params!["ws-1", "Work", "🔥", "#e8a045", 0i64, 1_000_000i64],
-        ).unwrap();
+        )
+        .unwrap();
         conn.execute(
             "INSERT INTO terminals (id,workspace_id,shell,cwd,position,size_percent,created_at)
              VALUES (?1,?2,?3,?4,?5,?6,?7)",
             params!["t-1", "ws-1", "zsh", "/tmp", 0i64, 50.0f64, 1_000_001i64],
-        ).unwrap();
+        )
+        .unwrap();
         for (i, line) in ["line one\n", "line two\n"].iter().enumerate() {
             conn.execute(
                 "INSERT OR REPLACE INTO scrollback (terminal_id,line_index,data) VALUES (?1,?2,?3)",
                 params!["t-1", i as i64, line],
-            ).unwrap();
+            )
+            .unwrap();
         }
         let mut stmt = conn
             .prepare("SELECT data FROM scrollback WHERE terminal_id=?1 ORDER BY line_index")

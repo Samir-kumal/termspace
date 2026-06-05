@@ -6,12 +6,14 @@ import { WorkspaceView } from './components/WorkspaceView/WorkspaceView'
 import { WorkspaceModal } from './components/WorkspaceModal/WorkspaceModal'
 import { SettingsModal } from './components/SettingsModal/SettingsModal'
 import { ConfirmModal } from './components/ConfirmModal/ConfirmModal'
+import { UsernameModal } from './components/UsernameModal/UsernameModal'
 import { ContextMenu } from './components/ui/ContextMenu'
 import { ToastContainer } from './components/ui/ToastContainer'
 import { CommandPalette } from './components/CommandPalette/CommandPalette'
 import { useGlobalKeybindings } from './hooks/useGlobalKeybindings'
-import { Workspace, Terminal } from './types'
+import { Workspace, Terminal, EditorPane } from './types'
 import { Group, Panel, Separator, usePanelRef } from 'react-resizable-panels'
+import { open } from '@tauri-apps/plugin-dialog'
 import { AnimatePresence } from 'framer-motion'
 import { flushSync } from 'react-dom'
 
@@ -49,6 +51,8 @@ export default function App() {
   const addTerminal = useAppStore((s) => s.addTerminal)
   const removeWorkspace = useAppStore((s) => s.removeWorkspace)
   const setActiveTerminalId = useAppStore((s) => s.setActiveTerminalId)
+  const addEditorPane = useAppStore((s) => s.addEditorPane)
+  const editorPanesByWorkspace = useAppStore((s) => s.editorPanesByWorkspace)
 
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [showSettingsModal, setShowSettingsModal] = useState(false)
@@ -61,6 +65,16 @@ export default function App() {
 
   const sidebarRef = usePanelRef()
   const settings = useAppStore((s) => s.settings)
+  const showCommandPalette = useAppStore((s) => s.showCommandPalette)
+  const setIsModalOpen = useAppStore((s) => s.setIsModalOpen)
+  const username = useAppStore((s) => s.username)
+  const setUsername = useAppStore((s) => s.setUsername)
+
+  const isAnyModalOpen = showCreateModal || showSettingsModal || !!editingWorkspace || !!workspaceToDelete || showCommandPalette || username === null
+  
+  useEffect(() => {
+    setIsModalOpen(isAnyModalOpen)
+  }, [isAnyModalOpen, setIsModalOpen])
 
   const prevActiveWorkspaceIdRef = useRef<string | null>(null)
 
@@ -68,7 +82,8 @@ export default function App() {
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', settings.theme)
-  }, [settings.theme])
+    document.documentElement.style.setProperty('--app-font-family', settings.uiFontFamily || 'Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif')
+  }, [settings.theme, settings.uiFontFamily])
 
   const withTimeout = <T,>(promise: Promise<T>, ms: number, label: string): Promise<T> => {
     let timer: ReturnType<typeof setTimeout>;
@@ -91,29 +106,31 @@ export default function App() {
   }
 
   async function activateWorkspace(workspaceId: string) {
-    const saved = await withTimeout(
-      invoke<Terminal[]>('get_terminals', { workspaceId }),
-      5000,
-      'get_terminals'
-    );
-    if (saved.length === 0) {
-      setTerminals(workspaceId, [])
-      await spawnAndAddTerminal(workspaceId)
-      return
-    }
-    // Spawn terminals serially
-    const spawned: Terminal[] = []
-    for (const t of saved) {
-      // Execute serially to prevent Rust backend Tokio threads from running
-      // load_scrollback (which allocates memory) concurrently with respawn_terminal
-      // (which forks the process). Concurrent execution causes fork() deadlocks on macOS!
-      const scrollback = await withTimeout(invoke<string[]>('load_scrollback', { terminalId: t.id }), 5000, 'load_scrollback');
-      await withTimeout(invoke<void>('respawn_terminal', { id: t.id, shell: t.shell, cwd: t.cwd || '' }), 5000, 'respawn_terminal');
+    useAppStore.getState().setActivatingWorkspace(workspaceId, true);
+    try {
+      const saved = await withTimeout(
+        invoke<Terminal[]>('get_terminals', { workspaceId }),
+        5000,
+        'get_terminals'
+      );
+      if (saved.length === 0) {
+        setTerminals(workspaceId, [])
+        await spawnAndAddTerminal(workspaceId)
+        return
+      }
+      // Spawn terminals serially
+      const spawned: Terminal[] = []
+      for (const t of saved) {
+        const scrollback = await withTimeout(invoke<string[]>('load_scrollback', { terminalId: t.id }), 5000, 'load_scrollback');
+        await withTimeout(invoke<void>('respawn_terminal', { id: t.id, shell: t.shell, cwd: t.cwd || '' }), 5000, 'respawn_terminal');
 
-      spawned.push({ ...t, scrollback })
+        spawned.push({ ...t, scrollback })
+      }
+      setTerminals(workspaceId, spawned)
+      setActiveTerminalId(spawned[0]?.id ?? null)
+    } finally {
+      useAppStore.getState().setActivatingWorkspace(workspaceId, false);
     }
-    setTerminals(workspaceId, spawned)
-    setActiveTerminalId(spawned[0]?.id ?? null)
   }
 
   useEffect(() => {
@@ -233,7 +250,7 @@ export default function App() {
   const hideContextMenu = useAppStore((s) => s.hideContextMenu)
 
   return (
-    <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden', backgroundColor: 'var(--bg-main)' }}>
       {contextMenu && (
         <ContextMenu
           x={contextMenu.x}
@@ -249,16 +266,51 @@ export default function App() {
         onNewTerminal={async () => {
           if (activeWorkspaceId) {
             try {
+              const activeTerminalId = useAppStore.getState().activeTerminalId;
+              const activeTerminal = activeTerminalId ? useAppStore.getState().terminalsByWorkspace[activeWorkspaceId]?.find(t => t.id === activeTerminalId) : null;
               const terminal = await invoke<Terminal>('spawn_terminal', {
                 workspaceId: activeWorkspaceId,
                 shell: 'zsh',
-                cwd: '',
+                cwd: activeTerminal?.cwd || '',
               })
               addTerminal(activeWorkspaceId, terminal)
               setActiveTerminalId(terminal.id)
             } catch (err) {
               console.error(err)
             }
+          }
+        }}
+        onNewEditor={async () => {
+          if (!activeWorkspaceId) return
+          try {
+            const selected = await open({
+              directory: true,
+              multiple: false,
+              title: 'Select Workspace Folder for Editor'
+            })
+            if (!selected) return
+            
+            const rootPath = selected as string
+            const currentPanes = editorPanesByWorkspace[activeWorkspaceId] ?? []
+            
+            const pane: EditorPane = {
+              id: Math.random().toString(36).substring(2, 9),
+              workspaceId: activeWorkspaceId,
+              rootPath,
+              openFiles: [],
+              activeFilePath: null,
+              mruStack: [],
+              fileTreeWidth: 20,
+              position: currentPanes.length,
+              createdAt: Date.now()
+            }
+            
+            addEditorPane(activeWorkspaceId, pane)
+            setActiveTerminalId(pane.id)
+            useAppStore.getState().addToast('Editor opened', 'info')
+          } catch (err) {
+            console.error('Failed to open editor:', err)
+            useAppStore.getState().addToast('Failed to open editor', 'error')
           }
         }}
       />
@@ -386,6 +438,13 @@ export default function App() {
       <AnimatePresence>
         {showSettingsModal && (
           <SettingsModal onClose={() => setShowSettingsModal(false)} />
+        )}
+      </AnimatePresence>
+      <AnimatePresence>
+        {username === null && (
+          <UsernameModal
+            onSave={(name) => setUsername(name)}
+          />
         )}
       </AnimatePresence>
       <AnimatePresence>

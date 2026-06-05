@@ -5,6 +5,7 @@ import { Terminal as TerminalType, BrowserPane as BrowserPaneType, LayoutNode } 
 const EMPTY_BROWSER_PANES: BrowserPaneType[] = []
 import { TerminalPane } from './TerminalPane'
 import { BrowserPane } from './BrowserPane'
+import { EditorPaneComponent } from '../EditorPane'
 import { Group, Panel, Separator } from 'react-resizable-panels'
 import { useAppStore } from '../../store/useAppStore'
 
@@ -44,6 +45,15 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
   if ((terminals.length === 0 && browserPanes.length === 0) || !layout) return null
 
   const isMaximized = maximizedTerminalId !== null
+
+  const containsMaximized = (n: LayoutNode): boolean => {
+    if (!maximizedTerminalId) return false
+    if (n.type === 'pane' && n.terminalId === maximizedTerminalId) return true
+    if (n.type === 'browser' && n.browserPaneId === maximizedTerminalId) return true
+    if (n.type === 'editor' && n.editorPaneId === maximizedTerminalId) return true
+    if (n.type === 'split') return n.children.some(containsMaximized)
+    return false
+  }
 
   const renderTerminal = (terminalId: string) => {
     const t = terminals.find(t => t.id === terminalId)
@@ -124,6 +134,7 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
           initialUrl={pane.url}
           isActive={pane.id === activeTerminalId}
           isMaximized={maximizedTerminalId === pane.id}
+          isHidden={isMaximized && maximizedTerminalId !== pane.id}
           onFocus={() => onFocus(pane.id)}
           onClose={() => {
             if (maximizedTerminalId === pane.id) setMaximizedTerminalId(null)
@@ -131,6 +142,24 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
           }}
           onSplit={(direction, initialUrl) => onSplitBrowserPane(pane.id, direction, initialUrl)}
           onToggleMaximize={() => setMaximizedTerminalId(maximizedTerminalId === pane.id ? null : pane.id)}
+        />
+      </div>
+    )
+  }
+
+  const renderEditorPane = (editorPaneId: string) => {
+    return (
+      <div
+        key={editorPaneId}
+        style={{
+          display: isMaximized && maximizedTerminalId !== editorPaneId ? 'none' : 'flex',
+          width: '100%', height: '100%', minWidth: 0, minHeight: 0,
+        }}
+      >
+        <EditorPaneComponent
+          workspaceId={workspaceId}
+          editorPaneId={editorPaneId}
+          isActive={editorPaneId === activeTerminalId}
         />
       </div>
     )
@@ -145,6 +174,10 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
       return renderBrowserPane(node.browserPaneId)
     }
 
+    if (node.type === 'editor') {
+      return renderEditorPane(node.editorPaneId)
+    }
+
     if (node.type === 'split') {
       return (
         <Group 
@@ -153,18 +186,31 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
           autoSave={node.id}
           // @ts-ignore: onLayout takes number[]
           onLayout={(sizes: number[]) => {
-            updateLayoutSizes(workspaceId, node.id, sizes)
+            if (!isMaximized) {
+              updateLayoutSizes(workspaceId, node.id, sizes)
+            }
           }}
           style={{ width: '100%', height: '100%' }}
         >
-          {node.children.map((child, idx) => (
-            <React.Fragment key={child.id}>
-              {idx > 0 && <CustomResizeHandle id={`handle-${node.id}-${idx}`} direction={node.direction} />}
-              <Panel id={child.id} defaultSize={node.sizes[idx] ?? (100 / node.children.length)}>
-                {renderLayoutNode(child)}
-              </Panel>
-            </React.Fragment>
-          ))}
+          {node.children.map((child, idx) => {
+            const hasMaximized = containsMaximized(child)
+            const shouldHide = isMaximized && !hasMaximized
+
+            return (
+              <React.Fragment key={child.id}>
+                {idx > 0 && !isMaximized && <CustomResizeHandle id={`handle-${node.id}-${idx}`} direction={node.direction} />}
+                <Panel
+                  id={child.id}
+                  defaultSize={node.sizes[idx] ?? (100 / node.children.length)}
+                  // @ts-ignore: data-* attributes are passed to the outer div
+                  data-hidden-panel={shouldHide ? "true" : undefined}
+                  data-maximized-panel={isMaximized && !shouldHide ? "true" : undefined}
+                >
+                  {renderLayoutNode(child)}
+                </Panel>
+              </React.Fragment>
+            )
+          })}
         </Group>
       )
     }
@@ -174,6 +220,10 @@ export function TerminalGrid({ workspaceId, terminals, activeTerminalId, onFocus
 
   return (
     <div style={{ flex: 1, padding: 0, minHeight: 0, minWidth: 0, overflow: 'hidden' }}>
+      <style>{`
+        [data-hidden-panel="true"] { display: none !important; }
+        [data-maximized-panel="true"] { flex-basis: 100% !important; flex-grow: 1 !important; max-width: 100% !important; max-height: 100% !important; }
+      `}</style>
       {renderLayoutNode(layout)}
     </div>
   )

@@ -16,7 +16,9 @@ pub struct PtyManager {
 
 impl PtyManager {
     pub fn new() -> Self {
-        PtyManager { handles: Mutex::new(HashMap::new()) }
+        PtyManager {
+            handles: Mutex::new(HashMap::new()),
+        }
     }
 
     pub fn spawn(
@@ -48,16 +50,23 @@ impl PtyManager {
         let pty_system = native_pty_system();
         println!(">>> RUST: pty_manager.spawn openpty...");
         let pair = pty_system
-            .openpty(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
+            .openpty(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
             .map_err(|e| format!("openpty failed: {e}"))?;
 
         let mut cmd = CommandBuilder::new(&resolved_shell);
         cmd.arg("-l");
         cmd.cwd(&resolved_cwd);
         cmd.env("TERM", "xterm-256color");
+        cmd.env("TERM_PROGRAM", "Apple_Terminal");
 
         println!(">>> RUST: pty_manager.spawn spawn_command...");
-        let child = pair.slave
+        let child = pair
+            .slave
             .spawn_command(cmd)
             .map_err(|e| format!("spawn failed: {e}"))?;
         println!(">>> RUST: pty_manager.spawn spawn_command finished.");
@@ -66,18 +75,26 @@ impl PtyManager {
         drop(pair.slave);
         println!(">>> RUST: pty_manager.spawn slave dropped.");
 
-        let reader = pair.master
+        let reader = pair
+            .master
             .try_clone_reader()
             .map_err(|e| format!("clone reader: {e}"))?;
         println!(">>> RUST: pty_manager.spawn reader cloned.");
         let writer = Arc::new(Mutex::new(
-            pair.master.take_writer().map_err(|e| format!("take writer: {e}"))?
+            pair.master
+                .take_writer()
+                .map_err(|e| format!("take writer: {e}"))?,
         ));
         println!(">>> RUST: pty_manager.spawn writer taken.");
 
         self.handles.lock().unwrap().insert(
             terminal_id,
-            PtyHandle { master: pair.master, writer, child, reader: Some(reader) },
+            PtyHandle {
+                master: pair.master,
+                writer,
+                child,
+                reader: Some(reader),
+            },
         );
         Ok(())
     }
@@ -93,7 +110,9 @@ impl PtyManager {
             let handle = handles
                 .get_mut(terminal_id)
                 .ok_or_else(|| format!("No PTY for {terminal_id}"))?;
-            handle.reader.take()
+            handle
+                .reader
+                .take()
                 .ok_or_else(|| format!("Reader already started for {terminal_id}"))?
         };
 
@@ -114,11 +133,17 @@ impl PtyManager {
     pub fn write(&self, terminal_id: &str, data: &str) -> Result<(), String> {
         let writer = {
             let handles = self.handles.lock().unwrap();
-            handles.get(terminal_id)
+            handles
+                .get(terminal_id)
                 .ok_or_else(|| format!("No PTY for {terminal_id}"))?
-                .writer.clone()
+                .writer
+                .clone()
         };
-        let result = writer.lock().unwrap().write_all(data.as_bytes()).map_err(|e| e.to_string());
+        let result = writer
+            .lock()
+            .unwrap()
+            .write_all(data.as_bytes())
+            .map_err(|e| e.to_string());
         result
     }
 
@@ -129,7 +154,12 @@ impl PtyManager {
             .get(terminal_id)
             .ok_or_else(|| format!("No PTY for {terminal_id}"))?
             .master
-            .resize(PtySize { rows, cols, pixel_width: 0, pixel_height: 0 })
+            .resize(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
             .map_err(|e| e.to_string())
     }
 
@@ -163,7 +193,8 @@ mod tests {
     #[test]
     fn spawn_and_kill() {
         let m = mgr();
-        m.spawn("t1".into(), "/bin/sh", "", 80, 24).expect("spawn failed");
+        m.spawn("t1".into(), "/bin/sh", "", 80, 24)
+            .expect("spawn failed");
         m.kill("t1");
     }
 
@@ -184,7 +215,8 @@ mod tests {
     #[test]
     fn resize_after_spawn_succeeds() {
         let m = mgr();
-        m.spawn("t2".into(), "/bin/sh", "", 80, 24).expect("spawn failed");
+        m.spawn("t2".into(), "/bin/sh", "", 80, 24)
+            .expect("spawn failed");
         m.resize("t2", 120, 40).expect("resize failed");
         m.kill("t2");
     }
@@ -192,8 +224,10 @@ mod tests {
     #[test]
     fn start_reading_twice_returns_err() {
         let m = mgr();
-        m.spawn("t3".into(), "/bin/sh", "", 80, 24).expect("spawn failed");
-        m.start_reading("t3", |_| {}).expect("first start_reading failed");
+        m.spawn("t3".into(), "/bin/sh", "", 80, 24)
+            .expect("spawn failed");
+        m.start_reading("t3", |_| {})
+            .expect("first start_reading failed");
         let result = m.start_reading("t3", |_| {});
         assert!(result.is_err());
         assert!(result.unwrap_err().contains("Reader already started"));
@@ -203,7 +237,8 @@ mod tests {
     #[test]
     fn write_and_read_output() {
         let m = mgr();
-        m.spawn("t4".into(), "/bin/sh", "", 80, 24).expect("spawn failed");
+        m.spawn("t4".into(), "/bin/sh", "", 80, 24)
+            .expect("spawn failed");
 
         let output: Arc<Mutex<String>> = Arc::new(Mutex::new(String::new()));
         let out2 = Arc::clone(&output);
@@ -212,14 +247,18 @@ mod tests {
         })
         .expect("start_reading failed");
 
-        m.write("t4", "echo pty_native_test\n").expect("write failed");
+        m.write("t4", "echo pty_native_test\n")
+            .expect("write failed");
 
         let deadline = Instant::now() + Duration::from_secs(5);
         loop {
             if output.lock().unwrap().contains("pty_native_test") {
                 break;
             }
-            assert!(Instant::now() < deadline, "timeout: shell never echoed output");
+            assert!(
+                Instant::now() < deadline,
+                "timeout: shell never echoed output"
+            );
             std::thread::sleep(Duration::from_millis(50));
         }
         m.kill("t4");

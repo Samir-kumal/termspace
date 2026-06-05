@@ -12,13 +12,16 @@ use tauri::Manager;
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
         .setup(|app| {
             let data_dir = app.path().app_data_dir().expect("no app data dir");
             std::fs::create_dir_all(&data_dir).unwrap();
             let conn = db::init_db(&data_dir.join("state.db")).expect("db init failed");
             app.manage(DbState(Mutex::new(conn)));
-            app.manage(commands::SysInfoState(Mutex::new(sysinfo::System::new())));
+            app.manage(commands::SysInfoState(Mutex::new((sysinfo::System::new(), sysinfo::Networks::new_with_refreshed_list()))));
             app.manage(PtyManager::new());
             app.manage(BrowserPaneManager::new());
 
@@ -31,16 +34,18 @@ pub fn run() {
 
             // Make the main webview transparent so child webviews can float behind it.
             // The NSWindow background color remains what was set in tauri.conf.json.
-            if let Some(window) = app.get_webview_window("main") {
-                let webview: &tauri::Webview = window.as_ref();
-                // Color(R, G, B, A)
-                let _ = webview.set_background_color(Some(tauri::utils::config::Color(0, 0, 0, 0)));
+            if let Some(window) = app.get_window("main").or_else(|| app.windows().into_values().next()) {
+                // If it is a Window, we might need to get its webview or set background on the window itself.
+                // In Tauri v2, `Window` implements set_background_color directly if configured.
+                let _ = window.set_background_color(Some(tauri::utils::config::Color(0, 0, 0, 0)));
             }
 
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_system_stats,
+            commands::get_git_branch,
+            commands::get_git_status,
             commands::get_workspaces,
             commands::create_workspace,
             commands::update_workspace,
@@ -50,6 +55,7 @@ pub fn run() {
             commands::respawn_terminal,
             commands::start_terminal,
             commands::rename_terminal,
+            commands::update_terminal_cwd,
             commands::close_terminal,
             commands::write_pty,
             commands::resize_pty,
@@ -66,9 +72,11 @@ pub fn run() {
             commands::browser_go_back,
             commands::browser_go_forward,
             commands::browser_reload,
+            commands::browser_open_devtools,
             commands::get_browser_panes,
             commands::spawn_ephemeral_browser_pane,
             commands::destroy_ephemeral_browser_pane,
+            commands::search_in_files,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

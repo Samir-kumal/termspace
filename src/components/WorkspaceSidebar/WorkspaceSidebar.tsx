@@ -18,6 +18,9 @@ export function WorkspaceSidebar({ isCollapsed, onToggleCollapse, onAddWorkspace
   const activeWorkspaceId = useAppStore((s) => s.activeWorkspaceId)
   const terminalsByWorkspace = useAppStore((s) => s.terminalsByWorkspace)
   const showContextMenu = useAppStore((s) => s.showContextMenu)
+  const username = useAppStore((s) => s.username) || 'User'
+
+  const initials = username.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase()
 
   return (
     <div
@@ -28,6 +31,7 @@ export function WorkspaceSidebar({ isCollapsed, onToggleCollapse, onAddWorkspace
       }}
     >
       <div
+        data-tauri-drag-region
         style={{
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
           height: 38, paddingLeft: 70, paddingRight: 12,
@@ -35,7 +39,7 @@ export function WorkspaceSidebar({ isCollapsed, onToggleCollapse, onAddWorkspace
           fontFamily: 'SF Mono, Menlo, monospace'
         }}
       >
-        <span>V0.8.4</span>
+        <span data-tauri-drag-region>v0.5.0</span>
       </div>
 
       <div
@@ -131,11 +135,11 @@ export function WorkspaceSidebar({ isCollapsed, onToggleCollapse, onAddWorkspace
         }}
       >
         <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--bg-item-active)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 11, color: 'var(--text-inactive)', flexShrink: 0 }}>
-          SK
+          {initials}
         </div>
         {!isCollapsed && (
           <div style={{ flex: 1, overflow: 'hidden' }}>
-            <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-active)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Samir Kumar</div>
+            <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-active)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{username}</div>
             <div style={{ fontSize: 11, color: 'var(--text-dim)' }}>Personal · Pro</div>
           </div>
         )}

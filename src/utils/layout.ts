@@ -60,6 +60,13 @@ export function addTerminalToLayout(
       }
       return node
     }
+    
+    if (node.type === 'editor') {
+      if (node.editorPaneId === targetId) {
+        return { type: 'split', id: generateId(), direction, sizes: [50, 50], children: [node, newPane] }
+      }
+      return node
+    }
 
     if (node.type === 'split') {
       return {
@@ -81,6 +88,8 @@ export function removeTerminalFromLayout(root: LayoutNode | null, terminalId: st
       if (node.terminalId === terminalId) return null
       return node
     }
+
+    if (node.type === 'browser' || node.type === 'editor') return node
 
     if (node.type === 'split') {
       const newChildren = node.children.map(traverseAndRemove).filter(Boolean) as LayoutNode[]
@@ -118,7 +127,7 @@ export function swapTerminalsInLayout(root: LayoutNode | null, sourceTerminalId:
       }
       return node
     }
-    if (node.type === 'browser') return node
+    if (node.type === 'browser' || node.type === 'editor') return node
     if (node.type === 'split') {
       return { ...node, children: node.children.map(traverseAndSwap) }
     }
@@ -133,7 +142,7 @@ export function updateSplitSizes(root: LayoutNode | null, splitId: string, sizes
 
   function traverseAndUpdate(node: LayoutNode): LayoutNode {
     if (node.type === 'pane') return node
-    if (node.type === 'browser') return node
+    if (node.type === 'browser' || node.type === 'editor') return node
     if (node.type === 'split') {
       if (node.id === splitId) {
         return { ...node, sizes, children: node.children.map(traverseAndUpdate) }
@@ -189,7 +198,80 @@ export function removeBrowserPaneFromLayout(root: LayoutNode | null, browserPane
     if (node.type === 'browser') {
       return node.browserPaneId === browserPaneId ? null : node
     }
-    if (node.type === 'pane') return node
+    if (node.type === 'pane' || node.type === 'editor') return node
+    if (node.type === 'split') {
+      const newChildren = node.children.map(traverseAndRemove).filter(Boolean) as LayoutNode[]
+      if (newChildren.length === 0) return null
+      if (newChildren.length === 1) return newChildren[0]
+      const removedCount = node.children.length - newChildren.length
+      if (removedCount === 0) return { ...node, children: newChildren }
+      const removedIndices = new Set(
+        node.children
+          .map((child, i) => ({ child, i }))
+          .filter(({ child }) => !newChildren.includes(child))
+          .map(({ i }) => i)
+      )
+      const survivingOriginalSizes = node.sizes.filter((_, i) => !removedIndices.has(i))
+      const total = survivingOriginalSizes.reduce((a, b) => a + b, 0)
+      const normalizedSizes = survivingOriginalSizes.map(s => total > 0 ? (s / total) * 100 : 100 / newChildren.length)
+      return { ...node, children: newChildren, sizes: normalizedSizes }
+    }
+    return node
+  }
+
+  return traverseAndRemove(root)
+}
+
+export function addEditorPaneToLayout(
+  root: LayoutNode | null,
+  editorPaneId: string,
+  targetId?: string,
+  direction: LayoutDirection = 'horizontal'
+): LayoutNode {
+  const newNode: LayoutNode = { type: 'editor', id: generateId(), editorPaneId }
+
+  if (!root) return newNode
+
+  if (!targetId) {
+    return { type: 'split', id: generateId(), direction, sizes: [50, 50], children: [root, newNode] }
+  }
+
+  function traverseAndAdd(node: LayoutNode): LayoutNode {
+    if (node.type === 'pane') {
+      if (node.terminalId === targetId) {
+        return { type: 'split', id: generateId(), direction, sizes: [50, 50], children: [node, newNode] }
+      }
+      return node
+    }
+    if (node.type === 'browser') {
+      if (node.browserPaneId === targetId) {
+        return { type: 'split', id: generateId(), direction, sizes: [50, 50], children: [node, newNode] }
+      }
+      return node
+    }
+    if (node.type === 'editor') {
+      if (node.editorPaneId === targetId) {
+        return { type: 'split', id: generateId(), direction, sizes: [50, 50], children: [node, newNode] }
+      }
+      return node
+    }
+    if (node.type === 'split') {
+      return { ...node, children: node.children.map(traverseAndAdd) }
+    }
+    return node
+  }
+
+  return traverseAndAdd(root)
+}
+
+export function removeEditorPaneFromLayout(root: LayoutNode | null, editorPaneId: string): LayoutNode | null {
+  if (!root) return null
+
+  function traverseAndRemove(node: LayoutNode): LayoutNode | null {
+    if (node.type === 'editor') {
+      return node.editorPaneId === editorPaneId ? null : node
+    }
+    if (node.type === 'pane' || node.type === 'browser') return node
     if (node.type === 'split') {
       const newChildren = node.children.map(traverseAndRemove).filter(Boolean) as LayoutNode[]
       if (newChildren.length === 0) return null

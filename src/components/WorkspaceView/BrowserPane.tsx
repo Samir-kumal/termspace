@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState, useLayoutEffect, useCallback } from 'react'
 import { listen } from '@tauri-apps/api/event'
 import { invoke } from '../../utils/tauri'
+import { useAppStore } from '../../store/useAppStore'
 
 interface Props {
   browserPaneId: string
   initialUrl: string
   isActive: boolean
   isMaximized: boolean
+  isHidden?: boolean
   onFocus: () => void
   onClose: () => void
   onSplit: (direction: 'horizontal' | 'vertical', initialUrl?: string) => void
@@ -16,55 +18,116 @@ interface Props {
 const HEADER_HEIGHT = 72 // 28 (tab bar) + 44 (url bar)
 
 export function BrowserPane({
-  browserPaneId, initialUrl, isActive, isMaximized: _isMaximized,
+  browserPaneId, initialUrl, isActive, isMaximized: _isMaximized, isHidden,
   onFocus, onClose, onSplit, onToggleMaximize,
 }: Props) {
   // Tabs state
-  const [tabs, setTabs] = useState<{ id: string; url: string; title: string, isDiscarded?: boolean }[]>([
+  const [tabs, setTabs] = useState<{ id: string; url: string; title: string; icon?: string; isDiscarded?: boolean }[]>([
     { id: browserPaneId, url: initialUrl, title: 'New Tab' }
   ])
   const [activeTabId, setActiveTabId] = useState(browserPaneId)
+  
+  const browserHistory = useAppStore(s => s.browserHistory)
+  const addToHistory = useAppStore(s => s.addToHistory)
+  const addToast = useAppStore(s => s.addToast)
+  const bookmarks = useAppStore(s => s.bookmarks)
+  const addBookmark = useAppStore(s => s.addBookmark)
+  const removeBookmark = useAppStore(s => s.removeBookmark)
+  const showContextMenu = useAppStore(s => s.showContextMenu)
+  
+  const [showHistory, setShowHistory] = useState(false)
+  const [showBookmarks, setShowBookmarks] = useState(false)
+  const isModalOpen = useAppStore(s => s.isModalOpen)
   
   // The url/inputUrl now reflect the *active* tab
   const activeTab = tabs.find(t => t.id === activeTabId) || tabs[0]
   const [url, setUrl] = useState(activeTab?.url || initialUrl)
   const [inputUrl, setInputUrl] = useState(activeTab?.url || initialUrl)
   const [isEditingUrl, setIsEditingUrl] = useState(false)
+  const [suggestions, setSuggestions] = useState<string[]>([])
+  const [selectedIndex, setSelectedIndex] = useState(-1)
   const containerRef = useRef<HTMLDivElement>(null)
+  const hiddenTabsRef = useRef<Set<string>>(new Set())
+  const discardTimersRef = useRef<{ [id: string]: ReturnType<typeof setTimeout> }>({})
+
+  // Fetch suggestions
+  useEffect(() => {
+    if (!isEditingUrl || !inputUrl || inputUrl.length < 2) {
+      setSuggestions([])
+      return
+    }
+
+    const historyMatches = browserHistory
+      .filter(h => h.toLowerCase().includes(inputUrl.toLowerCase()))
+      .slice(0, 3)
+
+    setSuggestions(historyMatches)
+
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://duckduckgo.com/ac/?q=${encodeURIComponent(inputUrl)}`)
+        const data = await res.json()
+        if (Array.isArray(data)) {
+          const apiSuggestions = data.map((item: any) => item.phrase).slice(0, 5)
+          
+          if (!inputUrl.includes(' ') && !inputUrl.includes('.')) {
+            apiSuggestions.unshift(`${inputUrl.toLowerCase()}.com`)
+          }
+
+          const combined = Array.from(new Set([...historyMatches, ...apiSuggestions])).slice(0, 8)
+          setSuggestions(combined)
+          setSelectedIndex(-1)
+        }
+      } catch (err) {
+        console.error('Failed to fetch suggestions:', err)
+      }
+    }, 150)
+    return () => clearTimeout(timer)
+  }, [inputUrl, isEditingUrl, browserHistory])
 
   // Sync native webview position whenever the container bounds change.
   const syncBounds = useCallback(() => {
     if (!containerRef.current) return
     const rect = containerRef.current.getBoundingClientRect()
-    if (rect.width < 1 || rect.height <= HEADER_HEIGHT) return
     
-    const MACOS_TITLEBAR_HEIGHT = 28;
+    // If the component is hidden (e.g. by maximization of another pane) or too small,
+    // or if a modal is open, we must move the native webview off-screen so it doesn't float over other UI.
+    const isDropdownOpen = showBookmarks || showHistory
+    if (rect.width < 1 || rect.height <= HEADER_HEIGHT || isModalOpen || isHidden || isDropdownOpen) {
+      invoke('hide_browser_pane', { id: activeTabId }).catch(() => {})
+      return
+    }
 
-    // Show the active tab's webview (in case it was hidden by an unmount)
-    invoke('show_browser_pane', { id: activeTabId }).catch(() => {})
+    // macOS native webviews with transparent windows have a coordinate offset 
+    // where the Y position is shifted up by the height of the standard titlebar (28px).
+    // We add 28px to compensate so it doesn't cover the URL panel.
+    const MACOS_TITLEBAR_OFFSET = 28;
 
     // Resize the active tab's webview to fit the hole
+    invoke('show_browser_pane', { id: activeTabId }).catch(() => {})
     invoke('resize_browser_pane', {
       id: activeTabId,
       x: rect.left,
-      y: rect.top + HEADER_HEIGHT + MACOS_TITLEBAR_HEIGHT,
+      y: rect.top + HEADER_HEIGHT + MACOS_TITLEBAR_OFFSET,
       w: rect.width,
-      h: rect.height - HEADER_HEIGHT,
+      h: rect.height - HEADER_HEIGHT - MACOS_TITLEBAR_OFFSET,
     }).catch(() => {})
+  }, [activeTabId, isModalOpen, isHidden, showBookmarks, showHistory, browserPaneId])
 
-    // Hide inactive tabs by moving them off-screen
+  // Handle hiding inactive tabs efficiently
+  useEffect(() => {
     tabs.forEach(tab => {
-      if (tab.id !== activeTabId && !tab.isDiscarded) {
-        invoke('resize_browser_pane', {
-          id: tab.id,
-          x: -10000,
-          y: -10000,
-          w: 800,
-          h: 600,
-        }).catch(() => {})
+      if (tab.id !== activeTabId && !tab.isDiscarded && !hiddenTabsRef.current.has(tab.id)) {
+        invoke('hide_browser_pane', { id: tab.id }).catch(() => {})
+        hiddenTabsRef.current.add(tab.id)
       }
     })
-  }, [activeTabId, tabs])
+
+    if (!isHidden) {
+      invoke('show_browser_pane', { id: activeTabId }).catch(() => {})
+    }
+    hiddenTabsRef.current.delete(activeTabId)
+  }, [activeTabId, tabs, isHidden])
 
   // Sync when activeTabId changes or wake up discarded tab
   useEffect(() => {
@@ -87,23 +150,47 @@ export function BrowserPane({
       }
     }
     syncBounds()
-  }, [activeTabId, activeTab, syncBounds])
+
+    return () => {
+      console.log(`[BrowserPane ${browserPaneId}] Unmounting, hiding native webview!`)
+      invoke('resize_browser_pane', {
+        id: activeTabId,
+        x: -10000, y: -10000, w: 800, h: 600,
+      }).catch(() => {})
+    }
+  }, [activeTabId, activeTab, syncBounds, browserPaneId])
 
   // Memory manager: discard inactive tabs after 2 minutes
   useEffect(() => {
-    const intervals = tabs.map(tab => {
-      if (tab.id === activeTabId) return null
-      if (tab.isDiscarded) return null
-      
-      // If not active, start a timeout to discard
-      return setTimeout(() => {
-        setTabs(currentTabs => currentTabs.map(t => t.id === tab.id ? { ...t, isDiscarded: true } : t))
-        invoke('destroy_ephemeral_browser_pane', { id: tab.id }).catch(() => {})
-      }, 2 * 60 * 1000)
+    tabs.forEach(tab => {
+      if (tab.id === activeTabId || tab.isDiscarded) {
+        if (discardTimersRef.current[tab.id]) {
+          clearTimeout(discardTimersRef.current[tab.id])
+          delete discardTimersRef.current[tab.id]
+        }
+      } else {
+        if (!discardTimersRef.current[tab.id]) {
+          discardTimersRef.current[tab.id] = setTimeout(() => {
+            setTabs(currentTabs => currentTabs.map(t => t.id === tab.id ? { ...t, isDiscarded: true } : t))
+            if (tab.id === browserPaneId) {
+              invoke('hide_browser_pane', { id: tab.id }).catch(() => {})
+            } else {
+              invoke('destroy_ephemeral_browser_pane', { id: tab.id }).catch(() => {})
+            }
+          }, 2 * 60 * 1000)
+        }
+      }
     })
-    
-    return () => intervals.forEach(i => i && clearTimeout(i))
-  }, [tabs, activeTabId])
+
+    // cleanup removed tabs
+    const tabIds = new Set(tabs.map(t => t.id))
+    Object.keys(discardTimersRef.current).forEach(id => {
+      if (!tabIds.has(id)) {
+        clearTimeout(discardTimersRef.current[id])
+        delete discardTimersRef.current[id]
+      }
+    })
+  }, [tabs, activeTabId, browserPaneId])
 
   useLayoutEffect(() => {
     const el = containerRef.current
@@ -118,6 +205,10 @@ export function BrowserPane({
     window.addEventListener('resize', syncBounds)
     return () => window.removeEventListener('resize', syncBounds)
   }, [syncBounds])
+
+  useEffect(() => {
+    syncBounds()
+  }, [isModalOpen, syncBounds])
 
   // Listen for URL changes for *any* of our tabs
   useEffect(() => {
@@ -137,6 +228,7 @@ export function BrowserPane({
       if (event.payload.id === activeTabId) {
         setUrl(event.payload.url)
         setInputUrl(event.payload.url)
+        addToHistory(event.payload.url)
       }
       
       // If it's the primary tab, save to DB
@@ -144,42 +236,118 @@ export function BrowserPane({
         invoke('save_browser_pane_url', { id: browserPaneId, url: event.payload.url }).catch(() => {})
       }
     })
-    
-    const unlistenPopup = listen<{ id: string; url: string }>('browser-pane-popup-requested', (event) => {
-      // If the popup comes from ANY of our tabs, open it as a new tab here!
-      if (!tabs.some(t => t.id === event.payload.id)) return
-      handleAddTab(event.payload.url)
+
+    const unlistenMetadata = listen<{ id: string; title: string; icon: string }>('browser-pane-metadata', (event) => {
+      setTabs(currentTabs => {
+        return currentTabs.map(t => {
+          if (t.id === event.payload.id) {
+            return { ...t, title: event.payload.title || t.title, icon: event.payload.icon || t.icon }
+          }
+          return t
+        })
+      })
+    })
+
+    const unlistenNewWindow = listen<{ id: string; url: string }>('browser-pane-new-window', (event) => {
+      // Check if this pane is the one that spawned it? Actually, event.payload.id is the parent webview id.
+      // So if event.payload.id exists in our tabs, we should spawn a new tab here.
+      const belongsToUs = tabsRef.current.some(t => t.id === event.payload.id)
+      if (belongsToUs) {
+        handleAddTab(event.payload.url)
+      }
+    })
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!isActive) return
+      const isDevToolsMac = e.metaKey && e.altKey && e.key.toLowerCase() === 'i'
+      const isDevToolsWin = e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 'i'
+      if (isDevToolsMac || isDevToolsWin) {
+        e.preventDefault()
+        invoke('browser_open_devtools', { id: activeTabId }).catch(console.error)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+
+    const unlistenDownloadReq = listen<{ id: string; url: string; path: string }>('browser-pane-download-requested', (event) => {
+      const belongsToUs = tabsRef.current.some(t => t.id === event.payload.id)
+      if (belongsToUs) {
+        addToast(`Downloading to ${event.payload.path}...`, 'info')
+      }
+    })
+
+    const unlistenDownloadFin = listen<{ id: string; url: string; path: string | null; success: boolean }>('browser-pane-download-finished', (event) => {
+      const belongsToUs = tabsRef.current.some(t => t.id === event.payload.id)
+      if (belongsToUs) {
+        if (event.payload.success) {
+          addToast(`Download complete: ${event.payload.path || 'Saved'}`, 'success')
+        } else {
+          addToast(`Download failed for ${event.payload.url}`, 'error')
+        }
+      }
+    })
+
+    const unlistenContextMenu = listen<{ id: string; url: string; x: number; y: number }>('browser-pane-context-menu', (event) => {
+      const belongsToUs = tabsRef.current.some(t => t.id === event.payload.id)
+      if (belongsToUs && containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect()
+        showContextMenu(rect.left + event.payload.x, rect.top + HEADER_HEIGHT + event.payload.y, [
+          {
+            label: 'Open Link in New Tab',
+            onClick: () => handleAddTab(event.payload.url)
+          },
+          {
+            label: 'Copy Link Address',
+            onClick: () => {
+              navigator.clipboard.writeText(event.payload.url)
+              addToast('Link copied to clipboard', 'success')
+            }
+          }
+        ])
+      }
     })
     
     return () => { 
+      window.removeEventListener('keydown', handleKeyDown)
       unlisten.then(fn => fn()) 
-      unlistenPopup.then(fn => fn())
+      unlistenMetadata.then(fn => fn())
+      unlistenNewWindow.then(fn => fn())
+      unlistenDownloadReq.then(fn => fn())
+      unlistenDownloadFin.then(fn => fn())
+      unlistenContextMenu.then(fn => fn())
     }
-  }, [activeTabId, tabs, browserPaneId])
+  }, [activeTabId, browserPaneId]) // Removed tabs dependency to avoid redefining listeners constantly
 
   const tabsRef = useRef(tabs)
   useEffect(() => {
     tabsRef.current = tabs
   }, [tabs])
 
-  // Hide all non-discarded webviews on unmount
+  // Hide main pane and destroy all ephemeral webviews on unmount
   useEffect(() => {
     return () => {
       tabsRef.current.forEach(tab => {
         if (!tab.isDiscarded) {
-          invoke('hide_browser_pane', { id: tab.id }).catch(() => {})
+          if (tab.id === browserPaneId) {
+            invoke('hide_browser_pane', { id: tab.id }).catch(() => {})
+          } else {
+            invoke('destroy_ephemeral_browser_pane', { id: tab.id }).catch(() => {})
+          }
         }
       })
     }
-  }, []) // Empty dependency array ensures this ONLY runs on unmount
+  }, [browserPaneId]) // Only runs on unmount
 
   const handleNavigate = (target: string) => {
     const isUrl = /^[a-zA-Z0-9\-\.]+\.[a-zA-Z]{2,6}(:[0-9]{1,5})?(\/.*)?$/.test(target) || target.startsWith('http://') || target.startsWith('https://') || target.startsWith('localhost:') || target.startsWith('127.0.0.1:')
-    const normalized = isUrl ? (target.startsWith('http') ? target : `https://${target}`) : `https://www.google.com/search?q=${encodeURIComponent(target)}`
+    const isLocalhost = target.startsWith('localhost') || target.startsWith('127.0.0.1')
+    const normalized = isUrl 
+      ? (target.startsWith('http') ? target : (isLocalhost ? `http://${target}` : `https://${target}`)) 
+      : `https://www.google.com/search?q=${encodeURIComponent(target)}`
     
     setUrl(normalized)
     setInputUrl(normalized)
     setIsEditingUrl(false)
+    addToHistory(normalized)
     
     setTabs(currentTabs => currentTabs.map(t => t.id === activeTabId ? { ...t, url: normalized } : t))
     invoke('navigate_browser_pane', { id: activeTabId, url: normalized }).catch(() => {})
@@ -232,7 +400,11 @@ export function BrowserPane({
     <div
       ref={containerRef}
       style={{ display: 'flex', flexDirection: 'column', width: '100%', height: '100%', minWidth: 0, minHeight: 0 }}
-      onClick={onFocus}
+      onClick={() => {
+        onFocus()
+        if (showBookmarks) setShowBookmarks(false)
+        if (showHistory) setShowHistory(false)
+      }}
     >
       {/* Tab Bar */}
       <div style={{
@@ -257,8 +429,10 @@ export function BrowserPane({
               borderTop: activeTabId === tab.id ? `1px solid ${borderColor}` : 'none',
             }}
           >
-            <span style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {tab.isDiscarded ? '💤 ' : ''}{tab.url.replace(/^https?:\/\//, '').replace(/^www\./, '') || 'New Tab'}
+            <span style={{ fontSize: 12, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: 6 }}>
+              {tab.isDiscarded && <span style={{ opacity: 0.6 }}>💤</span>}
+              {tab.icon && !tab.isDiscarded && <img src={tab.icon} alt="" style={{ width: 14, height: 14, borderRadius: 2 }} onError={(e) => e.currentTarget.style.display = 'none'} />}
+              {tab.title && tab.title !== 'New Tab' ? tab.title : (tab.url.replace(/^https?:\/\//, '').replace(/^www\./, '') || 'New Tab')}
             </span>
             <div 
               onClick={(e) => handleCloseTab(e, tab.id)}
@@ -306,24 +480,67 @@ export function BrowserPane({
         <div style={{
           flex: 1, height: 28, background: '#171717', borderRadius: 14,
           display: 'flex', alignItems: 'center', padding: '0 16px', gap: 8,
-          border: '1px solid #333', minWidth: 0,
+          border: '1px solid #333', minWidth: 0, position: 'relative'
         }}>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" strokeWidth="2" style={{ flexShrink: 0 }}><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
           {isEditingUrl ? (
-            <input
-              autoFocus
-              value={inputUrl}
-              onChange={(e) => setInputUrl(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleNavigate(inputUrl)
-                if (e.key === 'Escape') { setIsEditingUrl(false); setInputUrl(url) }
-              }}
-              onBlur={() => { setIsEditingUrl(false); setInputUrl(url) }}
-              style={{
-                flex: 1, background: 'transparent', border: 'none',
-                color: '#e8eaed', fontSize: 13, outline: 'none', minWidth: 0,
-              }}
-            />
+            <>
+              <input
+                autoFocus
+                value={inputUrl}
+                onChange={(e) => setInputUrl(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    if (selectedIndex >= 0 && suggestions[selectedIndex]) {
+                      handleNavigate(suggestions[selectedIndex])
+                    } else {
+                      handleNavigate(inputUrl)
+                    }
+                  }
+                  if (e.key === 'Escape') { setIsEditingUrl(false); setInputUrl(url) }
+                  if (e.key === 'ArrowDown') {
+                    e.preventDefault()
+                    setSelectedIndex(s => Math.min(s + 1, suggestions.length - 1))
+                  }
+                  if (e.key === 'ArrowUp') {
+                    e.preventDefault()
+                    setSelectedIndex(s => Math.max(s - 1, -1))
+                  }
+                }}
+                onBlur={() => { 
+                  // Short delay so click events on suggestions don't fire after unmount
+                  setTimeout(() => { setIsEditingUrl(false); setInputUrl(url) }, 150) 
+                }}
+                style={{
+                  flex: 1, background: 'transparent', border: 'none',
+                  color: '#e8eaed', fontSize: 13, outline: 'none', minWidth: 0,
+                }}
+              />
+              {suggestions.length > 0 && (
+                <div style={{
+                  position: 'absolute', top: 34, left: 0, right: 0,
+                  background: '#202124', border: '1px solid #333',
+                  borderRadius: 8, boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+                  zIndex: 1000, overflow: 'hidden', padding: '4px 0'
+                }}>
+                  {suggestions.map((suggestion, idx) => (
+                    <div
+                      key={idx}
+                      onClick={() => handleNavigate(suggestion)}
+                      onMouseEnter={() => setSelectedIndex(idx)}
+                      style={{
+                        padding: '8px 16px', fontSize: 13, color: '#e8eaed',
+                        background: idx === selectedIndex ? '#303134' : 'transparent',
+                        cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 8
+                      }}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" strokeWidth="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                      {suggestion}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           ) : (
             <div
               onClick={(e) => { e.stopPropagation(); setIsEditingUrl(true) }}
@@ -334,10 +551,83 @@ export function BrowserPane({
               </span>
             </div>
           )}
+          <button 
+            onClick={(e) => {
+              e.stopPropagation()
+              const isBookmarked = bookmarks.some(b => b.url === activeTab.url)
+              if (isBookmarked) removeBookmark(activeTab.url)
+              else addBookmark(activeTab.url, activeTab.title || activeTab.url, activeTab.icon)
+            }}
+            style={{ ...navBtnStyle, width: 24, height: 24, color: bookmarks.some(b => b.url === activeTab.url) ? '#fbbc04' : '#9aa0a6' }}
+            title="Bookmark this tab"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill={bookmarks.some(b => b.url === activeTab.url) ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </button>
+        </div>
+
+        <div style={{ position: 'relative' }}>
+          <button onClick={(e) => { e.stopPropagation(); setShowBookmarks(!showBookmarks); setShowHistory(false) }} style={{ ...navBtnStyle, color: showBookmarks ? '#e8eaed' : '#9aa0a6' }} title="Bookmarks">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+          </button>
+          {showBookmarks && (
+            <div style={{
+              position: 'absolute', top: 32, right: 0, width: 280, maxHeight: 400, overflowY: 'auto',
+              background: '#202124', border: '1px solid #333', borderRadius: 8, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', zIndex: 1000, padding: 8
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#9aa0a6', padding: '4px 8px 8px' }}>Bookmarks</div>
+              {bookmarks.length === 0 ? (
+                <div style={{ padding: 8, fontSize: 13, color: '#9aa0a6', textAlign: 'center' }}>No bookmarks yet</div>
+              ) : (
+                bookmarks.map((b, i) => (
+                  <div key={i} onClick={() => { handleNavigate(b.url); setShowBookmarks(false) }} style={{
+                    padding: '8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'
+                  }} onMouseEnter={e => e.currentTarget.style.background = '#303134'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    {b.icon ? <img src={b.icon} alt="" style={{ width: 14, height: 14, borderRadius: 2 }} /> : <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" strokeWidth="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>}
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                      <div style={{ fontSize: 13, color: '#e8eaed', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{b.title}</div>
+                      <div style={{ fontSize: 11, color: '#9aa0a6', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{b.url}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+        </div>
+        
+        <div style={{ position: 'relative' }}>
+          <button onClick={(e) => { e.stopPropagation(); setShowHistory(!showHistory); setShowBookmarks(false) }} style={{ ...navBtnStyle, color: showHistory ? '#e8eaed' : '#9aa0a6' }} title="History">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          </button>
+          {showHistory && (
+            <div style={{
+              position: 'absolute', top: 32, right: 0, width: 280, maxHeight: 400, overflowY: 'auto',
+              background: '#202124', border: '1px solid #333', borderRadius: 8, boxShadow: '0 8px 32px rgba(0,0,0,0.5)', zIndex: 1000, padding: 8
+            }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: '#9aa0a6', padding: '4px 8px 8px' }}>History</div>
+              {browserHistory.length === 0 ? (
+                <div style={{ padding: 8, fontSize: 13, color: '#9aa0a6', textAlign: 'center' }}>No history yet</div>
+              ) : (
+                browserHistory.map((h, i) => (
+                  <div key={i} onClick={() => { handleNavigate(h); setShowHistory(false) }} style={{
+                    padding: '8px', borderRadius: 6, display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer'
+                  }} onMouseEnter={e => e.currentTarget.style.background = '#303134'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#9aa0a6" strokeWidth="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                      <div style={{ fontSize: 13, color: '#e8eaed', whiteSpace: 'nowrap', textOverflow: 'ellipsis', overflow: 'hidden' }}>{h}</div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
         </div>
 
         {/* Action Buttons */}
         <div style={{ display: 'flex', gap: 4 }}>
+          <button onClick={(e) => { e.stopPropagation(); invoke('browser_open_devtools', { id: activeTabId }) }} style={navBtnStyle} title="Open DevTools (Cmd+Option+I)">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M20 14.66V20a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h5.34"></path><polygon points="18 2 22 6 12 16 8 16 8 12 18 2"></polygon></svg>
+          </button>
+          <div style={{ width: 1, height: 16, background: '#333', margin: 'auto 4px' }} />
           <button onClick={(e) => { e.stopPropagation(); onSplit('horizontal') }} style={navBtnStyle} title="Split right">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><path d="M12 3v18"/></svg>
           </button>

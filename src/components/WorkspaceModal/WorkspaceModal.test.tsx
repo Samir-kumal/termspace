@@ -6,7 +6,7 @@ describe('WorkspaceModal', () => {
   it('calls onSave with entered name when Create is clicked', () => {
     const onSave = vi.fn()
     render(<WorkspaceModal onSave={onSave} onCancel={vi.fn()} />)
-    fireEvent.change(screen.getByPlaceholderText(/workspace name/i), { target: { value: 'My Space' } })
+    fireEvent.change(screen.getByPlaceholderText(/Backend/i), { target: { value: 'My Space' } })
     fireEvent.click(screen.getByRole('button', { name: /create/i }))
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ name: 'My Space' }))
   })

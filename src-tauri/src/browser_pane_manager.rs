@@ -15,7 +15,10 @@
 use std::collections::HashMap;
 use std::sync::Mutex;
 
-use tauri::{Emitter, LogicalPosition, LogicalSize, WebviewBuilder, WebviewUrl, WebviewWindow, Manager};
+use tauri::{
+    Emitter, LogicalPosition, LogicalSize, Manager, WebviewBuilder, WebviewUrl,
+};
+use tauri_plugin_dialog::DialogExt;
 
 /// Offscreen coordinates used to "hide" a pane without destroying it. Keeping
 /// the webview alive preserves its navigation/session state, so showing it
@@ -67,7 +70,7 @@ impl BrowserPaneManager {
     /// the runtime layer, so the manager refuses duplicates up front.
     pub fn create(
         &self,
-        window: &WebviewWindow,
+        window: &tauri::Window,
         app: &tauri::AppHandle,
         id: &str,
         url: &str,
@@ -75,6 +78,7 @@ impl BrowserPaneManager {
         y: f64,
         w: f64,
         h: f64,
+        workspace_id: Option<&str>,
     ) -> Result<(), tauri::Error> {
         // Reject non-positive dimensions. This is a transient startup race
         // (React mounts the placeholder before its rect has been measured), so
@@ -98,62 +102,194 @@ impl BrowserPaneManager {
 
         // Parse defensively: a malformed/empty URL must not panic the command
         // thread. Fall back to https://google.com, mirroring browser behavior.
-        let target_url = url
-            .parse()
-            .unwrap_or_else(|_| "https://google.com".parse().expect("https://google.com is a valid URL"));
+        let target_url = url.parse().unwrap_or_else(|_| {
+            "https://google.com"
+                .parse()
+                .expect("https://google.com is a valid URL")
+        });
 
         let nav_app_handle = app_handle.clone();
         let nav_id = id_owned.clone();
-        
+
         let popup_app_handle = app_handle.clone();
         let popup_id = id_owned.clone();
 
-        let data_dir = app_handle.path().app_data_dir().unwrap_or_else(|_| std::path::PathBuf::from("/tmp")).join("browser_profile");
+        let title_app_handle = app_handle.clone();
+        let title_id = id_owned.clone();
 
-        let builder = WebviewBuilder::new(format!("browser-pane-{}", id), WebviewUrl::External(target_url))
-            .data_directory(data_dir)
-            .on_navigation(move |nav_url| {
-                println!(">>> BROWSER: Navigation requested to: {}", nav_url);
-                // Returning `true` allows the navigation to proceed. We only
-                // observe it to keep the frontend's URL state in sync.
-                let _ = nav_app_handle.emit(
-                    "browser-pane-url-changed",
-                    serde_json::json!({
-                        "id": nav_id,
-                        "url": nav_url.to_string(),
-                    }),
-                );
-                true
-            })
-            .on_page_load(|_webview, payload| {
-                println!(">>> BROWSER: Page load event: {:?}", payload.url());
-            })
-            .on_new_window(move |nav_url, _features| {
-                println!(">>> BROWSER: Popup requested to: {}", nav_url);
-                let _ = popup_app_handle.emit(
-                    "browser-pane-popup-requested",
-                    serde_json::json!({
-                        "id": popup_id,
-                        "url": nav_url.to_string(),
-                    }),
-                );
-                tauri::webview::NewWindowResponse::Deny
-            })
-            .on_download(move |_url, _event| {
-                println!(">>> BROWSER: Download started");
-                true // allow download, will trigger default OS save dialog (or automatic download to ~/Downloads)
+        let download_app_handle = app_handle.clone();
+        let download_id = id_owned.clone();
+
+        let data_dir_name = if let Some(ws_id) = workspace_id {
+            format!("browser_profile_{}", ws_id)
+        } else {
+            "browser_profile".to_string()
+        };
+
+        let data_dir = app_handle
+            .path()
+            .app_data_dir()
+            .unwrap_or_else(|_| std::path::PathBuf::from("/tmp"))
+            .join(data_dir_name);
+
+        if !data_dir.exists() {
+            let _ = std::fs::create_dir_all(&data_dir);
+        }
+
+        let init_js = r#"
+            window.addEventListener('contextmenu', (e) => {
+                let target = e.target;
+                let href = null;
+                while (target && target.tagName !== 'A') {
+                    target = target.parentElement;
+                }
+                if (target && target.href) {
+                    href = target.href;
+                }
+                if (href) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const url = `termspace-ctx://menu?url=${encodeURIComponent(href)}&x=${e.clientX}&y=${e.clientY}`;
+                    
+                    // Create an iframe to navigate without replacing the top window state
+                    const iframe = document.createElement('iframe');
+                    iframe.style.display = 'none';
+                    iframe.src = url;
+                    document.body.appendChild(iframe);
+                    setTimeout(() => iframe.remove(), 100);
+                }
+            }, true);
+        "#;
+
+        let builder = WebviewBuilder::new(
+            format!("browser-pane-{}", id),
+            WebviewUrl::External(target_url),
+        )
+        .data_directory(data_dir)
+        .initialization_script(init_js)
+        .on_navigation(move |nav_url| {
+            if nav_url.scheme() == "termspace-ctx" {
+                let url = nav_url.query_pairs().find(|(k, _)| k == "url").map(|(_, v)| v.into_owned()).unwrap_or_default();
+                let x = nav_url.query_pairs().find(|(k, _)| k == "x").map(|(_, v)| v.into_owned()).unwrap_or_default();
+                let y = nav_url.query_pairs().find(|(k, _)| k == "y").map(|(_, v)| v.into_owned()).unwrap_or_default();
+                
+                let _ = nav_app_handle.emit("browser-pane-context-menu", serde_json::json!({
+                    "id": nav_id,
+                    "url": url,
+                    "x": x.parse::<f64>().unwrap_or(0.0),
+                    "y": y.parse::<f64>().unwrap_or(0.0)
+                }));
+                return false;
+            }
+            
+            println!(">>> BROWSER: Navigation requested to: {}", nav_url);
+            // Returning `true` allows the navigation to proceed. We only
+            // observe it to keep the frontend's URL state in sync.
+            let _ = nav_app_handle.emit(
+                "browser-pane-url-changed",
+                serde_json::json!({
+                    "id": nav_id,
+                    "url": nav_url.to_string(),
+                }),
+            );
+            true
+        })
+        .on_page_load(move |webview, payload| {
+            println!(">>> BROWSER: Page load event: {:?}", payload.url());
+            let app = title_app_handle.clone();
+            let id = title_id.clone();
+            
+            let js = r#"
+                (function() {
+                    const title = document.title;
+                    const icon = document.querySelector('link[rel="icon"]')?.href || document.querySelector('link[rel="shortcut icon"]')?.href || '';
+                    return JSON.stringify({ title, icon });
+                })();
+            "#;
+            
+            let _ = webview.eval_with_callback(js, move |result| {
+                // `result` is often a JSON-stringified string from the JS engine, so we might need to parse it twice 
+                // if the JS engine JSON.stringifies the return value. But since we return JSON.stringify, it's a string.
+                // Let's just try parsing.
+                let parsed_str: Result<String, _> = serde_json::from_str(&result);
+                let actual_json = parsed_str.unwrap_or(result);
+                
+                if let Ok(data) = serde_json::from_str::<serde_json::Value>(&actual_json) {
+                    let _ = app.emit("browser-pane-metadata", serde_json::json!({
+                        "id": id,
+                        "title": data.get("title").and_then(|v| v.as_str()).unwrap_or(""),
+                        "icon": data.get("icon").and_then(|v| v.as_str()).unwrap_or(""),
+                    }));
+                }
             });
+        })
+        .on_new_window(move |nav_url, _features| {
+            println!(">>> BROWSER: Popup requested to: {}", nav_url);
+            // Block the native popup window and emit an event to the frontend
+            // so we can open it as a new tab instead.
+            let _ = popup_app_handle.emit(
+                "browser-pane-new-window",
+                serde_json::json!({
+                    "id": popup_id,
+                    "url": nav_url.to_string(),
+                }),
+            );
+            tauri::webview::NewWindowResponse::Deny
+        })
+        .on_download(move |webview, event| {
+            match event {
+                tauri::webview::DownloadEvent::Requested { url, destination } => {
+                    println!(">>> BROWSER: Download requested: {}", url);
+                    let app = webview.app_handle();
+                    let default_name = destination.file_name().unwrap_or_default().to_string_lossy().into_owned();
+                    
+                    if let Some(file_path) = app.dialog().file().set_file_name(&default_name).blocking_save_file() {
+                        let path_str = file_path.to_string();
+                        if let Some(path) = file_path.into_path().ok() {
+                            *destination = path.clone();
+                        } else {
+                            *destination = std::path::PathBuf::from(&path_str);
+                        }
+                        
+                        let _ = download_app_handle.emit("browser-pane-download-requested", serde_json::json!({
+                            "id": download_id,
+                            "url": url.to_string(),
+                            "path": destination.to_string_lossy().into_owned()
+                        }));
+                        
+                        return true;
+                    }
+                    false
+                }
+                tauri::webview::DownloadEvent::Finished { url, path, success } => {
+                    println!(">>> BROWSER: Download finished for {}, success: {}", url, success);
+                    let path_str = path.map(|p| p.to_string_lossy().into_owned());
+                    let _ = download_app_handle.emit("browser-pane-download-finished", serde_json::json!({
+                        "id": download_id,
+                        "url": url.to_string(),
+                        "path": path_str,
+                        "success": success
+                    }));
+                    true
+                }
+                _ => true
+            }
+        });
 
-        // `add_child` lives on `Window`, not `WebviewWindow`. `WebviewWindow`
-        // exposes its inner `Webview` via `AsRef`, and `Webview::window()`
-        // returns the hosting `Window`.
-        let parent = window.as_ref().window();
-        let webview = parent.add_child(builder, LogicalPosition::new(x, y), LogicalSize::new(w, h))?;
+        let webview =
+            window.add_child(builder, LogicalPosition::new(x, y), LogicalSize::new(w, h))?;
 
-        self.panes
-            .lock()
-            .unwrap()
-            .insert(id.to_string(), PaneEntry { webview, x, y, w, h, is_hidden: false });
+        self.panes.lock().unwrap().insert(
+            id.to_string(),
+            PaneEntry {
+                webview,
+                x,
+                y,
+                w,
+                h,
+                is_hidden: false,
+            },
+        );
         Ok(())
     }
 
@@ -172,9 +308,23 @@ impl BrowserPaneManager {
     }
 
     /// Repositions and resizes a pane, updating the cached bounds so a later
+    pub fn open_devtools(&self, id: &str) {
+        println!(">>> BROWSER: open_devtools for '{}'", id);
+        #[cfg(debug_assertions)]
+        {
+            let panes = self.panes.lock().unwrap();
+            if let Some(entry) = panes.get(id) {
+                entry.webview.open_devtools();
+            }
+        }
+    }
+
     /// `show()` restores this rectangle rather than a stale one.
     pub fn set_bounds(&self, id: &str, x: f64, y: f64, w: f64, h: f64) {
-        println!(">>> BROWSER: set_bounds for '{}' -> x:{}, y:{}, w:{}, h:{}", id, x, y, w, h);
+        println!(
+            ">>> BROWSER: set_bounds for '{}' -> x:{}, y:{}, w:{}, h:{}",
+            id, x, y, w, h
+        );
         // Drop non-positive rectangles (transient measurement races); pushing a
         // zero/negative size to the runtime is undefined and could clobber a
         // valid cached rect.
@@ -224,7 +374,9 @@ impl BrowserPaneManager {
         let mut panes = self.panes.lock().unwrap();
         if let Some(entry) = panes.get_mut(id) {
             entry.is_hidden = true;
-            let _ = entry.webview.set_position(LogicalPosition::new(HIDDEN_X, HIDDEN_Y));
+            let _ = entry
+                .webview
+                .set_position(LogicalPosition::new(HIDDEN_X, HIDDEN_Y));
             let _ = entry.webview.set_size(LogicalSize::new(1.0_f64, 1.0_f64));
         }
     }
@@ -234,7 +386,9 @@ impl BrowserPaneManager {
         let mut panes = self.panes.lock().unwrap();
         if let Some(entry) = panes.get_mut(id) {
             entry.is_hidden = false;
-            let _ = entry.webview.set_position(LogicalPosition::new(entry.x, entry.y));
+            let _ = entry
+                .webview
+                .set_position(LogicalPosition::new(entry.x, entry.y));
             let _ = entry.webview.set_size(LogicalSize::new(entry.w, entry.h));
         }
     }

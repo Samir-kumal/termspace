@@ -3,6 +3,8 @@ import { Terminal as XTerm } from '@xterm/xterm'
 import { FitAddon } from '@xterm/addon-fit'
 import { SerializeAddon } from '@xterm/addon-serialize'
 import { SearchAddon } from '@xterm/addon-search'
+import { WebglAddon } from '@xterm/addon-webgl'
+import { WebLinksAddon } from '@xterm/addon-web-links'
 import { invoke, listen } from '../../utils/tauri'
 import { useAppStore } from '../../store/useAppStore'
 import '@xterm/xterm/css/xterm.css'
@@ -41,6 +43,75 @@ const XTERM_THEMES = {
     cursor: '#0969da',
     cursorAccent: '#ffffff',
     selectionBackground: 'rgba(9,105,218,0.3)',
+  },
+  'catppuccin-mocha': {
+    background: '#1e1e2e',
+    foreground: '#cdd6f4',
+    cursor: '#f5e0dc',
+    cursorAccent: '#1e1e2e',
+    selectionBackground: 'rgba(245,224,220,0.3)',
+    black: '#45475a',
+    red: '#f38ba8',
+    green: '#a6e3a1',
+    yellow: '#f9e2af',
+    blue: '#89b4fa',
+    magenta: '#f5c2e7',
+    cyan: '#94e2d5',
+    white: '#bac2de',
+    brightBlack: '#585b70',
+    brightRed: '#f38ba8',
+    brightGreen: '#a6e3a1',
+    brightYellow: '#f9e2af',
+    brightBlue: '#89b4fa',
+    brightMagenta: '#f5c2e7',
+    brightCyan: '#94e2d5',
+    brightWhite: '#a6adc8',
+  },
+  'synthwave': {
+    background: '#262335',
+    foreground: '#ff7edb',
+    cursor: '#f97e72',
+    cursorAccent: '#262335',
+    selectionBackground: 'rgba(249,126,114,0.3)',
+    black: '#000000',
+    red: '#fe4450',
+    green: '#72f1b8',
+    yellow: '#f3e70f',
+    blue: '#03edf9',
+    magenta: '#ff7edb',
+    cyan: '#03edf9',
+    white: '#ffffff',
+    brightBlack: '#848bbd',
+    brightRed: '#fe4450',
+    brightGreen: '#72f1b8',
+    brightYellow: '#f3e70f',
+    brightBlue: '#03edf9',
+    brightMagenta: '#ff7edb',
+    brightCyan: '#03edf9',
+    brightWhite: '#ffffff',
+  },
+  'fruity': {
+    background: '#2b1d24',
+    foreground: '#fce4ec',
+    cursor: '#ff4081',
+    cursorAccent: '#ffffff',
+    selectionBackground: 'rgba(255,64,129,0.3)',
+    black: '#424242',
+    red: '#ff1744',
+    green: '#00e676',
+    yellow: '#ffea00',
+    blue: '#2979ff',
+    magenta: '#d500f9',
+    cyan: '#00e5ff',
+    white: '#ffffff',
+    brightBlack: '#757575',
+    brightRed: '#ff5252',
+    brightGreen: '#69f0ae',
+    brightYellow: '#ffff00',
+    brightBlue: '#448aff',
+    brightMagenta: '#e040fb',
+    brightCyan: '#18ffff',
+    brightWhite: '#ffffff',
   }
 }
 
@@ -51,7 +122,8 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
   const xtermRef = useRef<XTerm | null>(null)
   const searchAddonRef = useRef<SearchAddon | null>(null)
   const unlistenRef = useRef<Promise<() => void> | null>(null)
-  const [isHovered, setIsHovered] = useState(false)
+  const webglLoadedRef = useRef(false)
+  // Removed isHovered state
   
   const [showSearch, setShowSearch] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
@@ -61,6 +133,22 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
   const renameTerminal = useAppStore(s => s.renameTerminal)
   const [isEditingTitle, setIsEditingTitle] = useState(false)
   const [editTitleValue, setEditTitleValue] = useState('')
+  const [gitBranch, setGitBranch] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!terminal?.cwd) {
+      setGitBranch(null)
+      return
+    }
+    invoke<string>('get_git_branch', { cwd: terminal.cwd })
+      .then(branch => setGitBranch(branch))
+      .catch(() => setGitBranch(null))
+  }, [terminal?.cwd])
+
+  const formatCwd = (path: string) => {
+    if (!path) return ''
+    return path.replace(/^\/Users\/[^\/]+/, '~').replace(/^\/home\/[^\/]+/, '~')
+  }
 
   const handleTitleSave = () => {
     setIsEditingTitle(false)
@@ -83,6 +171,7 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
     if (xtermRef.current) {
       xtermRef.current.options.theme = XTERM_THEMES[settings.theme]
       xtermRef.current.options.fontSize = settings.fontSize
+      xtermRef.current.options.fontFamily = settings.terminalFontFamily || '"JetBrains Mono", "Fira Code", Menlo, monospace'
     }
   }, [settings])
 
@@ -91,10 +180,12 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
 
     const xterm = new XTerm({
       theme: XTERM_THEMES[settings.theme],
-      fontFamily: 'Menlo, Monaco, "Courier New", monospace',
+      fontFamily: settings.terminalFontFamily || '"JetBrains Mono", "Fira Code", Menlo, monospace',
       fontSize: settings.fontSize,
       lineHeight: 1.4,
       cursorBlink: true,
+      macOptionIsMeta: true,
+      smoothScrollDuration: 150,
     })
 
     const fitAddon = new FitAddon()
@@ -104,6 +195,103 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
     xterm.loadAddon(serializeAddon)
     xterm.loadAddon(searchAddon)
     searchAddonRef.current = searchAddon
+
+    const webLinksAddon = new WebLinksAddon((_event, uri) => {
+      useAppStore.getState().addBrowserPane(workspaceId, {
+        id: crypto.randomUUID(),
+        workspaceId,
+        url: uri,
+        position: 0,
+        createdAt: Date.now()
+      }, terminalId, 'vertical')
+    })
+    xterm.loadAddon(webLinksAddon)
+
+    xterm.registerLinkProvider({
+      provideLinks: (bufferLineNumber, callback) => {
+        const line = xterm.buffer.active.getLine(bufferLineNumber - 1)?.translateToString(true)
+        if (!line) {
+          callback([])
+          return
+        }
+
+        const links: any[] = []
+        const regex = /(?:^|\s|\"|\')((?:\.\/|\/|~\|[a-zA-Z]:\\)?[^\s"']+\.md)(?:\s|\"|\'|$)/g
+        let match
+        while ((match = regex.exec(line)) !== null) {
+          links.push({
+            range: {
+              start: { x: match.index + 1 + (match[0].length - match[1].length), y: bufferLineNumber },
+              end: { x: match.index + (match[0].length - match[1].length) + match[1].length, y: bufferLineNumber }
+            },
+            text: match[1],
+            activate: (_e: any, text: string) => {
+               let fullPath = text
+               const existingEditor = useAppStore.getState().editorPanesByWorkspace[workspaceId]?.[0]
+               const rootPath = existingEditor?.rootPath || terminal?.cwd || ''
+               
+               if (rootPath) {
+                 if (text.startsWith('./')) {
+                   fullPath = `${rootPath}/${text.slice(2)}`
+                 } else if (!text.startsWith('/')) {
+                   fullPath = `${rootPath}/${text}`
+                 }
+               }
+               
+               const editorPanes = useAppStore.getState().editorPanesByWorkspace[workspaceId] || []
+               if (editorPanes.length > 0) {
+                 useAppStore.getState().updateEditorPaneFile(workspaceId, editorPanes[0].id, fullPath)
+               } else {
+                 if (rootPath) {
+                   useAppStore.getState().addEditorPane(workspaceId, {
+                     id: crypto.randomUUID(),
+                     workspaceId,
+                     rootPath,
+                     openFiles: [fullPath],
+                     activeFilePath: fullPath,
+                     mruStack: [fullPath],
+                     fileTreeWidth: 20,
+                     position: 0,
+                     createdAt: Date.now()
+                   }, terminalId, 'vertical')
+                 }
+               }
+            }
+          })
+        }
+        callback(links)
+      }
+    })
+    
+    xterm.parser.registerOscHandler(7, (data) => {
+      const match = data.match(/^file:\/\/[^\/]*(\/.*)$/)
+      if (match) {
+        let newCwd = match[1]
+        try {
+          newCwd = decodeURI(newCwd)
+        } catch (e) {
+          // ignore decoding errors
+        }
+        useAppStore.getState().updateTerminalCwd(workspaceId, terminalId, newCwd)
+        invoke('update_terminal_cwd', { id: terminalId, cwd: newCwd }).catch(console.error)
+      }
+      return true
+    })
+
+    xterm.parser.registerOscHandler(99, (data) => {
+      if (data === 'NeedsAttention=1') {
+        const currentCount = useAppStore.getState().terminalsByWorkspace[workspaceId]?.find(t => t.id === terminalId)?.notificationCount || 0
+        useAppStore.getState().setTerminalNotification(workspaceId, terminalId, currentCount + 1)
+      } else if (data === 'NeedsAttention=0') {
+        useAppStore.getState().setTerminalNotification(workspaceId, terminalId, 0)
+      }
+      return true
+    })
+    
+    const handleFocus = () => {
+      useAppStore.getState().setTerminalNotification(workspaceId, terminalId, 0)
+    }
+    containerRef.current.addEventListener('focusin', handleFocus)
     
     xterm.attachCustomKeyEventHandler((e) => {
       if (e.type === 'keydown') {
@@ -117,10 +305,26 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
 
         // Force explicit backspace handling to bypass any xterm/DOM swallowing
         if (e.key === 'Backspace') {
-          // On macOS, \x7f (DEL) is standard for backspace, but sometimes \x08 is needed
-          // We will send \x7f explicitly.
-          invoke('write_pty', { terminalId, data: '\x7f' }).catch(console.error)
+          if (e.altKey) {
+            // Option+Backspace deletes word
+            invoke('write_pty', { terminalId, data: '\x1b\x7f' }).catch(console.error)
+          } else if (e.metaKey) {
+            // Cmd+Backspace deletes line (Ctrl+U)
+            invoke('write_pty', { terminalId, data: '\x15' }).catch(console.error)
+          } else {
+            invoke('write_pty', { terminalId, data: '\x7f' }).catch(console.error)
+          }
           return false // Tell xterm to not process it natively
+        }
+        
+        // Handle Option + Arrow keys for word navigation
+        if (e.altKey && e.key === 'ArrowLeft') {
+          invoke('write_pty', { terminalId, data: '\x1bb' }).catch(console.error)
+          return false
+        }
+        if (e.altKey && e.key === 'ArrowRight') {
+          invoke('write_pty', { terminalId, data: '\x1bf' }).catch(console.error)
+          return false
         }
         
         const handled = keybindingHandlerRef.current(e)
@@ -156,9 +360,26 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
     })
 
     // resize observer keeps cols/rows in sync with DOM
-    const ro = new ResizeObserver(() => {
-      fitAddon.fit()
-      invoke('resize_pty', { terminalId, cols: xterm.cols, rows: xterm.rows }).catch(console.error)
+    const ro = new ResizeObserver((entries) => {
+      if (!entries.length || entries[0].contentRect.width === 0) return
+
+      try {
+        fitAddon.fit()
+        invoke('resize_pty', { terminalId, cols: xterm.cols, rows: xterm.rows }).catch(console.error)
+
+        // Only load WebGL AFTER the first valid fit() so the canvas doesn't stretch enormously
+        if (!webglLoadedRef.current) {
+          webglLoadedRef.current = true
+          try {
+            const webglAddon = new WebglAddon()
+            xterm.loadAddon(webglAddon)
+          } catch (e: any) {
+            console.warn('WebGL addon failed to load, falling back to canvas/DOM', e)
+          }
+        }
+      } catch (e) {
+        console.warn('fit() failed', e)
+      }
     })
     ro.observe(containerRef.current)
 
@@ -173,6 +394,9 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
       xterm.dispose()
       // Note: removeTerminal is intentionally NOT called here.
       // The parent (App.tsx activateWorkspace) owns terminal lifecycle in the store.
+      if (containerRef.current) {
+        containerRef.current.removeEventListener('focusin', handleFocus)
+      }
     }
   }, [terminalId, workspaceId]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -183,8 +407,7 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
   return (
     <div
       onClick={onFocus}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+
       onContextMenu={(e) => {
         // Only trigger our context menu if clicking near the top/edges, not inside the actual terminal text area
         // to preserve native copy/paste context menus. Or we just allow it on the container.
@@ -234,7 +457,7 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
         boxShadow: isDragOver
           ? '0 8px 24px rgba(0,0,0,0.15)'
           : 'none',
-        background: 'var(--bg-terminal)', cursor: 'text',
+        background: XTERM_THEMES[settings.theme as keyof typeof XTERM_THEMES]?.background || 'var(--bg-terminal)', cursor: 'text',
         position: 'relative',
         transition: 'border 0.2s',
         opacity: isDragOver ? 0.7 : 1,
@@ -334,14 +557,26 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
               }}
               style={{
                 fontSize: 10, color: 'var(--accent)', textTransform: 'uppercase', letterSpacing: 1,
-                cursor: 'text', userSelect: 'none', fontWeight: 600, fontFamily: 'SF Mono, Menlo, monospace'
+                cursor: 'text', userSelect: 'none', fontWeight: 600, fontFamily: 'SF Mono, Menlo, monospace',
+                position: 'relative'
               }}
             >
               {terminal?.title || 'Terminal'}
+              {terminal?.notificationCount && terminal.notificationCount > 0 && (
+                <span style={{
+                  position: 'absolute', top: -6, right: -12, background: '#ef4444', color: 'white',
+                  fontSize: 9, fontWeight: 'bold', padding: '1px 4px', borderRadius: 10,
+                  lineHeight: 1, minWidth: 14, textAlign: 'center', display: 'inline-block'
+                }}>
+                  {terminal.notificationCount > 99 ? '99+' : terminal.notificationCount}
+                </span>
+              )}
             </div>
           )}
 
-          <span style={{ fontSize: 10, color: 'var(--text-dim)', marginLeft: 12, fontFamily: 'SF Mono, Menlo, monospace', flex: 1 }}>~/vortex · main</span>
+          <span style={{ fontSize: 11, color: 'var(--text-dim)', marginLeft: 16, fontFamily: 'SF Mono, Menlo, monospace', flex: 1, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {formatCwd(terminal?.cwd || '')}{gitBranch ? <span style={{ opacity: 0.5 }}> · {gitBranch}</span> : ''}
+          </span>
 
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
             <div
@@ -398,7 +633,7 @@ export function TerminalPane({ terminalId, workspaceId, isActive, isMaximized, s
         </div>
       )}
 
-      <div style={{ flex: 1, minHeight: 0, padding: '4px 0 4px 8px' }}>
+      <div style={{ flex: 1, minHeight: 0, padding: '4px 0 0 8px' }}>
         <div ref={containerRef} style={{ width: '100%', height: '100%' }} />
       </div>
     </div>

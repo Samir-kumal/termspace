@@ -6,21 +6,23 @@ interface Props {
   activeTerminalId: string | null
   onAddTerminal: () => void
   onAddBrowserPane: () => void
+  onAddEditorPane: () => void
   onEditWorkspace: () => void
   onSelectTerminal: (id: string) => void
   onCloseTerminal: (id: string) => void
 }
 
-export function WorkspaceHeader({ workspace, terminals, activeTerminalId, onAddTerminal, onAddBrowserPane, onEditWorkspace, onSelectTerminal, onCloseTerminal }: Props) {
+export function WorkspaceHeader({ terminals, activeTerminalId, onAddTerminal, onAddBrowserPane, onAddEditorPane, onSelectTerminal, onCloseTerminal }: Props) {
   return (
     <div
+      data-tauri-drag-region
       style={{
-        height: 36, display: 'flex', alignItems: 'stretch',
+        height: 38, display: 'flex', alignItems: 'stretch',
         borderBottom: '1px solid var(--border-inactive)',
         background: 'var(--bg-sidebar)', flexShrink: 0
       }}
     >
-      <div style={{ flex: 1, display: 'flex', overflowX: 'auto', overflowY: 'hidden' }}>
+      <div data-tauri-drag-region style={{ flex: 1, display: 'flex', overflowX: 'auto', overflowY: 'hidden' }}>
         {terminals.map((t, idx) => {
           const isActive = t.id === activeTerminalId
           return (
@@ -114,6 +116,25 @@ export function WorkspaceHeader({ workspace, terminals, activeTerminalId, onAddT
           }}
         >
           <span>[ ]</span> Browser
+        </button>
+        <button
+          onClick={onAddEditorPane}
+          style={{
+            padding: '3px 8px', background: 'transparent',
+            border: '1px solid var(--border-inactive)', borderRadius: 4,
+            color: 'var(--text-inactive)', fontSize: 10, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', gap: 4
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.color = 'var(--text-active)'
+            e.currentTarget.style.borderColor = 'var(--text-dim)'
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = 'var(--text-inactive)'
+            e.currentTarget.style.borderColor = 'var(--border-inactive)'
+          }}
+        >
+          <span>&lt;/&gt;</span> Editor
         </button>
       </div>
     </div>

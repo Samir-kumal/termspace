@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest'
 import { act } from '@testing-library/react'
 import { useAppStore } from './useAppStore'
-import { Workspace, Terminal, BrowserPane } from '../types'
+import { Workspace, Terminal, BrowserPane, EditorPane } from '../types'
 
 const ws1: Workspace = { id: 'ws-1', name: 'Work', emoji: '🔥', color: '#e8a045', position: 0, createdAt: 1000 }
 const t1: Terminal = { id: 't-1', workspaceId: 'ws-1', shell: 'zsh', cwd: '/tmp', position: 0, sizePercent: 50, createdAt: 1001 }
@@ -12,6 +12,9 @@ beforeEach(() => {
     activeWorkspaceId: null,
     activeTerminalId: null,
     terminalsByWorkspace: {},
+    browserPanesByWorkspace: {},
+    editorPanesByWorkspace: {},
+    layoutsByWorkspace: {},
   })
 })
 
@@ -56,16 +59,32 @@ describe('useAppStore', () => {
     act(() => useAppStore.getState().setActiveTerminalId('t-1'))
     expect(useAppStore.getState().activeTerminalId).toBe('t-1')
   })
+
+  it('setTerminals preserves browser and editor nodes in layout', () => {
+    const terminal: Terminal = { id: 't1', workspaceId: 'ws-1', shell: 'zsh', cwd: '/tmp', position: 0, sizePercent: 50, createdAt: 1000 }
+    const browser: BrowserPane = { id: 'b1', workspaceId: 'ws-1', url: 'http://localhost', position: 0, createdAt: 1000 }
+    const editor: EditorPane = { id: 'e1', workspaceId: 'ws-1', rootPath: '/tmp', openFiles: [], activeFilePath: null, mruStack: [], fileTreeWidth: 20, position: 0, createdAt: 1000 }
+
+    act(() => {
+      useAppStore.getState().addTerminal('ws-1', terminal)
+      useAppStore.getState().addBrowserPane('ws-1', browser)
+      useAppStore.getState().addEditorPane('ws-1', editor)
+    })
+
+    const layoutBefore = useAppStore.getState().layoutsByWorkspace['ws-1']
+    expect(layoutBefore).not.toBeNull()
+
+    act(() => {
+      // Re-set terminals, should preserve b1 and e1
+      useAppStore.getState().setTerminals('ws-1', [terminal])
+    })
+
+    const layoutAfter = useAppStore.getState().layoutsByWorkspace['ws-1']
+    expect(layoutAfter).toEqual(layoutBefore)
+  })
 })
 
 describe('browser pane store', () => {
-  beforeEach(() => {
-    useAppStore.setState({
-      browserPanesByWorkspace: {},
-      layoutsByWorkspace: {},
-    })
-  })
-
   it('addBrowserPane adds pane and creates browser layout node', () => {
     const pane: BrowserPane = {
       id: 'bp-1', workspaceId: 'ws-1', url: 'http://localhost:3000',
@@ -90,5 +109,87 @@ describe('browser pane store', () => {
     const panes = useAppStore.getState().browserPanesByWorkspace['ws-1']
     expect(panes).toHaveLength(0)
     expect(useAppStore.getState().layoutsByWorkspace['ws-1']).toBeNull()
+  })
+})
+
+describe('editor pane store', () => {
+  it('updateEditorPaneFile updates openFiles, activeFilePath, and mruStack', () => {
+    const pane: EditorPane = {
+      id: 'ep-1', workspaceId: 'ws-1', rootPath: '/tmp',
+      openFiles: [], activeFilePath: null, mruStack: [],
+      fileTreeWidth: 20, position: 0, createdAt: 1000,
+    }
+    act(() => {
+      useAppStore.getState().addEditorPane('ws-1', pane)
+      useAppStore.getState().updateEditorPaneFile('ws-1', 'ep-1', 'file1.ts')
+    })
+    
+    const updated = useAppStore.getState().editorPanesByWorkspace['ws-1'][0]
+    expect(updated.openFiles).toEqual(['file1.ts'])
+    expect(updated.activeFilePath).toBe('file1.ts')
+    expect(updated.mruStack).toEqual(['file1.ts'])
+
+    act(() => {
+      useAppStore.getState().updateEditorPaneFile('ws-1', 'ep-1', 'file2.ts')
+    })
+    const updated2 = useAppStore.getState().editorPanesByWorkspace['ws-1'][0]
+    expect(updated2.openFiles).toEqual(['file1.ts', 'file2.ts'])
+    expect(updated2.activeFilePath).toBe('file2.ts')
+    expect(updated2.mruStack).toEqual(['file2.ts', 'file1.ts'])
+  })
+
+  it('closeEditorFile removes file and updates activeFilePath from mruStack', () => {
+    const pane: EditorPane = {
+      id: 'ep-1', workspaceId: 'ws-1', rootPath: '/tmp',
+      openFiles: ['f1', 'f2'], activeFilePath: 'f2', mruStack: ['f2', 'f1'],
+      fileTreeWidth: 20, position: 0, createdAt: 1000,
+    }
+    act(() => {
+      useAppStore.getState().addEditorPane('ws-1', pane)
+      useAppStore.getState().closeEditorFile('ws-1', 'ep-1', 'f2')
+    })
+    
+    const updated = useAppStore.getState().editorPanesByWorkspace['ws-1'][0]
+    expect(updated.openFiles).toEqual(['f1'])
+    expect(updated.activeFilePath).toBe('f1')
+    expect(updated.mruStack).toEqual(['f1'])
+  })
+
+  it('updateEditorPaneLayout updates arbitrary fields', () => {
+    const pane: EditorPane = {
+      id: 'ep-1', workspaceId: 'ws-1', rootPath: '/tmp',
+      openFiles: [], activeFilePath: null, mruStack: [],
+      fileTreeWidth: 20, position: 0, createdAt: 1000,
+    }
+    act(() => {
+      useAppStore.getState().addEditorPane('ws-1', pane)
+      useAppStore.getState().updateEditorPaneLayout('ws-1', 'ep-1', { fileTreeWidth: 30 })
+    })
+    
+    const updated = useAppStore.getState().editorPanesByWorkspace['ws-1'][0]
+    expect(updated.fileTreeWidth).toBe(30)
+  })
+
+  it('splitEditor creates a new pane and updates layout', () => {
+    const pane: EditorPane = {
+      id: 'ep-1', workspaceId: 'ws-1', rootPath: '/tmp',
+      openFiles: ['f1'], activeFilePath: 'f1', mruStack: ['f1'],
+      fileTreeWidth: 20, position: 0, createdAt: 1000,
+    }
+    act(() => {
+      useAppStore.getState().addEditorPane('ws-1', pane)
+      useAppStore.getState().splitEditor('ws-1', 'ep-1', 'vertical')
+    })
+
+    const panes = useAppStore.getState().editorPanesByWorkspace['ws-1']
+    expect(panes).toHaveLength(2)
+    expect(panes[1].openFiles).toEqual(['f1']) // Should copy state
+
+    const layout = useAppStore.getState().layoutsByWorkspace['ws-1']
+    expect(layout?.type).toBe('split')
+    if (layout?.type === 'split') {
+      expect(layout.direction).toBe('vertical')
+      expect(layout.children).toHaveLength(2)
+    }
   })
 })
