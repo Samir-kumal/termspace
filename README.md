@@ -1,8 +1,8 @@
 # termspace
 
-A modern, keyboard-driven terminal workspace manager built with Tauri + React + TypeScript.
+A modern, keyboard-driven unified developer workspace manager built with Tauri + React + TypeScript.
 
-Termspace lets you create named workspaces, each with a fully configurable grid of terminal panes. Split, resize, drag-and-drop, and search — all from one window.
+Termspace is more than just a terminal—it is a fully integrated environment that brings together your command line, code editor, and web browser. It allows you to create named workspaces, each with a fully configurable grid of panes. Seamlessly split, resize, and drag-and-drop terminal instances, a built-in code editor (equipped with a file tree, Git status integration, and markdown preview), and an embedded web browser—all from one cohesive window. Experience powerful features like full-text search, a global command palette, and customizable keybindings to supercharge your workflow.
 
 ![termspace](docs/screenshot.png)
 
